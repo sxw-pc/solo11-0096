@@ -1,0 +1,4 @@
+{"payment_code": "P01", "payment_key": 1, "payment_type": "example_pass"}
+{"payment_code": "P02", "payment_key": 2, "payment_type": "example_qr"}
+{"payment_code": "P03", "payment_key": 3, "payment_type": "example_cash"}
+{"payment_code": "P04", "payment_key": 4, "payment_type": "example_coupon"}

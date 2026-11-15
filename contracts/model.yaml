@@ -1,0 +1,162 @@
+schema_version: 1
+run_epoch: 1767225600
+
+dataset:
+  name: afc_demo
+  root: ../fixtures
+  max_rows: 500000
+  null_tokens: ["NULL", "null"]
+
+dimensions:
+  - name: dim_date
+    source: dim_date.csv
+    format: csv
+    conformed_group: calendar
+    surrogate_key: date_key
+    natural_keys: [date_id]
+    attributes:
+      - {name: date_key, type: integer}
+      - {name: date_id, type: string}
+      - {name: calendar_date, type: date}
+      - {name: is_weekend, type: boolean}
+      - {name: fiscal_year, type: integer}
+
+  - name: dim_accounting_date
+    source: dim_accounting_date.csv
+    format: csv
+    conformed_group: calendar
+    surrogate_key: date_key
+    natural_keys: [date_id]
+    attributes:
+      - {name: date_key, type: integer}
+      - {name: date_id, type: string}
+      - {name: calendar_date, type: date}
+      - {name: is_weekend, type: boolean}
+      - {name: fiscal_year, type: integer}
+
+  - name: dim_line
+    source: dim_line.csv
+    format: csv
+    surrogate_key: line_key
+    natural_keys: [line_code]
+    attributes:
+      - {name: line_key, type: integer}
+      - {name: line_code, type: string}
+      - {name: line_name, type: string}
+
+  - name: dim_station
+    source: dim_station.csv
+    format: csv
+    surrogate_key: station_key
+    natural_keys: [station_code]
+    attributes:
+      - {name: station_key, type: integer}
+      - {name: station_code, type: string}
+      - {name: station_name, type: string}
+      - {name: line_key, type: integer}
+    snowflake:
+      parent: dim_line
+      child_key: line_key
+      parent_key: line_key
+
+  - name: dim_fare_band
+    source: dim_fare_band.csv
+    format: csv
+    surrogate_key: fare_band_key
+    natural_keys: [band_code]
+    attributes:
+      - {name: fare_band_key, type: integer}
+      - {name: band_code, type: string}
+      - {name: min_fare, type: float}
+      - {name: max_fare, type: float}
+
+  - name: dim_payment
+    source: dim_payment.jsonl
+    format: jsonl
+    surrogate_key: payment_key
+    natural_keys: [payment_code]
+    attributes:
+      - {name: payment_key, type: integer}
+      - {name: payment_code, type: string}
+      - {name: payment_type, type: string}
+
+facts:
+  - name: fct_ridership
+    source: fct_ridership.csv
+    format: csv
+    grain: [event_id]
+    refs:
+      - dimension: dim_date
+        fact_key: service_date_key
+        dimension_key: date_key
+        role: service_date
+      - dimension: dim_station
+        fact_key: station_key
+        dimension_key: station_key
+        role: station
+    measures:
+      - name: ride_count
+        column: ride_count
+        agg: sum
+        additivity: additive
+        unit: rides
+      - name: fare_amount
+        column: fare_amount
+        agg: sum
+        additivity: additive
+        unit: currency
+      - name: avg_wait_seconds
+        column: avg_wait_seconds
+        agg: avg
+        additivity: non_additive
+        unit: seconds
+      - name: card_balance
+        column: card_balance
+        agg: sum
+        additivity: semi_additive
+        semi_additive_axis: dim_date
+        unit: balance
+
+  - name: fct_fare_revenue
+    source: fct_fare_revenue.csv
+    format: csv
+    grain: [revenue_id]
+    refs:
+      - dimension: dim_accounting_date
+        fact_key: accounting_date_key
+        dimension_key: date_key
+        role: accounting_date
+      - dimension: dim_station
+        fact_key: station_key
+        dimension_key: station_key
+        role: station
+      - dimension: dim_fare_band
+        fact_key: fare_band_key
+        dimension_key: fare_band_key
+        role: fare_band
+      - dimension: dim_payment
+        fact_key: payment_key
+        dimension_key: payment_key
+        role: payment_method
+    measures:
+      - name: revenue_amount
+        column: revenue_amount
+        agg: sum
+        additivity: additive
+        unit: currency
+      - name: transaction_count
+        column: transaction_count
+        agg: sum
+        additivity: additive
+        unit: transactions
+      - name: refund_amount
+        column: refund_amount
+        agg: sum
+        additivity: additive
+        unit: currency
+      - name: avg_revenue_per_transaction
+        agg: ratio
+        additivity: ratio
+        numerator: revenue_amount
+        denominator: transaction_count
+        unit: currency
