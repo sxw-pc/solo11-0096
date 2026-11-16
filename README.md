@@ -124,6 +124,14 @@ python scripts/check_limits.py
 
 更多说明见 [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md)。
 
+## 本地维表交付登记
+
+`python -m dimcheck.intake fixtures/dimension-delivery.json --root fixtures --ledger <本地台账路径>`
+会校验示例维表交付清单、逐份 CSV 的字节摘要和行数，并登记不可变的
+`batch_id`、生产方及文件收据。相同清单重试幂等；同一批次身份换生产方或内容
+会报冲突。此流程只读来源 CSV，台账写在调用者指定的本地路径；可用
+`python -m pytest -q tests/test_intake.py` 复验正常、冲突和坏摘要路径。
+
 ## 项目结构
 
 ```text

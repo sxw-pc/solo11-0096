@@ -1,0 +1,16 @@
+{
+  "batch_id": "afc-dim-delivery-01",
+  "producer": "sample-producer-a",
+  "dimensions": [
+    {
+      "name": "dim_line",
+      "source": "dim_line.csv",
+      "sha256": "a3f6da90678d90caef6382412c42aa624d1394c7a4e09e486e9b0243e3e49dae"
+    },
+    {
+      "name": "dim_station",
+      "source": "dim_station.csv",
+      "sha256": "7d772074a823edebbfe974a0669980732a3b5644cde7e2e6325dcd286fdc74b0"
+    }
+  ]
+}
