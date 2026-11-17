@@ -1,0 +1,11 @@
+{
+  "case_id": "afc-two-layer-fare-cap-01",
+  "service_date_key": 1,
+  "line_cap_minor": 500,
+  "network_cap_minor": 700,
+  "line_cap_sponsor": "synthetic_line_fund",
+  "network_cap_sponsor": "synthetic_city_fund",
+  "first_receipt_cutoff_utc": "2026-01-01T23:00:00Z",
+  "second_receipt_cutoff_utc": "2026-01-02T01:00:00Z",
+  "eligible_orders": ["line_first", "network_first"]
+}

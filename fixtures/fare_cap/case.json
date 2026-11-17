@@ -1,0 +1,18 @@
+{
+  "bands": "fixtures/dim_fare_band.csv",
+  "date": "fixtures/dim_date.csv",
+  "journeys": "fixtures/fare_cap/journeys.csv",
+  "line": "fixtures/dim_line.csv",
+  "model": "contracts/model.yaml",
+  "policy": "fixtures/fare_cap/policy.json",
+  "sha256": {
+    "contracts/model.yaml": "d013cea08509e9c1b0b9fe44d6887a81686308ada0d329b13dff25df037c8fad",
+    "fixtures/dim_date.csv": "8cc51980d667d1d052f2691fad1a616bf7a481d2f8b630ce89afbb99895cea0d",
+    "fixtures/dim_fare_band.csv": "59f5e3010e5f93c38d10380a952be5ac009ce9da8ae0dad5596052bdb019a0f2",
+    "fixtures/dim_line.csv": "a3f6da90678d90caef6382412c42aa624d1394c7a4e09e486e9b0243e3e49dae",
+    "fixtures/dim_station.csv": "7d772074a823edebbfe974a0669980732a3b5644cde7e2e6325dcd286fdc74b0",
+    "fixtures/fare_cap/journeys.csv": "7dd961d38b4427b0836492f01aa7a17d33d58e9de4f6c504f7b29ce070431a51",
+    "fixtures/fare_cap/policy.json": "56552e5856e473730bb8153ca615b66e75cb9031aee88bedb10777619ec30eb0"
+  },
+  "station": "fixtures/dim_station.csv"
+}

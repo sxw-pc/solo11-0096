@@ -1,0 +1,5 @@
+journey_id,card_token,station_key,service_date_key,occurred_at_utc,received_at_utc,fare_band_key,base_fare_minor
+J1,CARD-A,1,1,2026-01-01T08:00:00Z,2026-01-01T08:01:00Z,2,300
+J2,CARD-A,2,1,2026-01-01T09:00:00Z,2026-01-01T09:01:00Z,2,300
+J3,CARD-A,3,1,2026-01-01T10:00:00Z,2026-01-01T10:01:00Z,2,300
+J0,CARD-A,3,1,2026-01-01T07:00:00Z,2026-01-02T00:30:00Z,2,200
