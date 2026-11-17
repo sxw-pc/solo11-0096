@@ -1,0 +1,20 @@
+{
+  "model": "contracts/model.yaml",
+  "dates": "fixtures/dim_accounting_date.csv",
+  "station": "fixtures/dim_station.csv",
+  "fare_band": "fixtures/dim_fare_band.csv",
+  "payment": "fixtures/dim_payment.jsonl",
+  "periods": "fixtures/revenue_bridge/periods.csv",
+  "sparse": "fixtures/revenue_bridge/sparse.csv",
+  "policy": "fixtures/revenue_bridge/policy.json",
+  "sha256": {
+    "contracts/model.yaml": "d013cea08509e9c1b0b9fe44d6887a81686308ada0d329b13dff25df037c8fad",
+    "fixtures/dim_accounting_date.csv": "8cc51980d667d1d052f2691fad1a616bf7a481d2f8b630ce89afbb99895cea0d",
+    "fixtures/dim_station.csv": "7d772074a823edebbfe974a0669980732a3b5644cde7e2e6325dcd286fdc74b0",
+    "fixtures/dim_fare_band.csv": "59f5e3010e5f93c38d10380a952be5ac009ce9da8ae0dad5596052bdb019a0f2",
+    "fixtures/dim_payment.jsonl": "070ea86bff67eeeb40024bfd71ec57d1b969688ec05c5450afe8b997473e5f01",
+    "fixtures/revenue_bridge/periods.csv": "4e076a27fcd1f1a5adb128d835e40ae9ae16dfe5f27ee19b98eca353acece6c9",
+    "fixtures/revenue_bridge/sparse.csv": "a39bccb1f851b650701b86e627c1db566998a2b351f739bf78c3caa07d28356e",
+    "fixtures/revenue_bridge/policy.json": "b8b9eb05c10fc6b12b79cfc8fd712492b6da4a107378cef35aee56553496eb6a"
+  }
+}

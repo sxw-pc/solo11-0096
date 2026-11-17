@@ -1,0 +1,5 @@
+revenue_id,accounting_date_key,station_key,fare_band_key,payment_key,revenue_amount,transaction_count,refund_amount
+B-QR,1,1,2,2,160.00,80,6.00
+B-CASH,1,1,2,3,80.00,20,4.00
+C-QR,2,1,2,2,120.00,50,8.00
+C-CASH,2,1,2,3,360.00,100,10.00

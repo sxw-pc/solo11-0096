@@ -1,0 +1,11 @@
+{
+  "case_id": "fare-revenue-bridge-01",
+  "base_accounting_date_key": 1,
+  "current_accounting_date_key": 2,
+  "station_key": 1,
+  "fare_band_key": 2,
+  "cell_key": "payment_key",
+  "contracts": ["sequential_n_mix_price", "symmetric_shapley"],
+  "currency_unit": "cents",
+  "sparse_cell_handling": "entry_exit_separate_without_imputed_price"
+}
