@@ -124,6 +124,15 @@ python scripts/check_limits.py
 
 更多说明见 [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md)。
 
+## 抽样框登记
+
+`python -m dimcheck.sampling fixtures/sample-design.json fixtures/sample-ridership.csv --ledger <本地台账路径>`
+登记一份离线的分层有限总体样本设计。示例清单列出工作日与周末的轻量
+总体行身份、固定抽取种子和入样身份；登记时重算确定性排序并逐一核对样本
+CSV，而非只相信清单自述。相同设计重放幂等，同号内容改变报冲突。
+此入口仅冻结抽样证据，不把样例上的模型检查当成全量总体结论；
+`tests/test_sampling.py` 包含可运行的正常与错误证据样本。
+
 ## 项目结构
 
 ```text
