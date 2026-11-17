@@ -1,0 +1,41 @@
+schema_version: 1
+run_epoch: 1767225600
+dataset:
+  name: identity_demo
+  root: .
+  max_rows: 100
+  null_tokens: ["NULL"]
+dimensions:
+  - name: dim_boarding_station
+    source: left.csv
+    surrogate_key: station_key
+    natural_keys: [station_code]
+    conformed_group: station_identity
+    attributes:
+      - {name: station_key, type: integer}
+      - {name: station_code, type: string}
+      - {name: station_name, type: string}
+  - name: dim_finance_station
+    source: right.csv
+    surrogate_key: station_key
+    natural_keys: [station_code]
+    conformed_group: station_identity
+    attributes:
+      - {name: station_key, type: integer}
+      - {name: station_code, type: string}
+      - {name: station_name, type: string}
+facts:
+  - name: fct_boardings
+    source: fact.csv
+    grain: [event_id]
+    refs:
+      - dimension: dim_boarding_station
+        fact_key: station_key
+        dimension_key: station_key
+        role: boarding_station
+    measures:
+      - name: boardings
+        column: boardings
+        agg: sum
+        additivity: additive
+        unit: rides

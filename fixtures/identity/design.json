@@ -1,0 +1,14 @@
+{
+  "case_id": "station-identity-01",
+  "contract_path": "fixtures/identity/model.yaml",
+  "left_dimension": "dim_boarding_station",
+  "right_dimension": "dim_finance_station",
+  "alias_path": "fixtures/identity/aliases.csv",
+  "file_sha256": {
+    "fixtures/identity/left.csv": "e581a38f0695b538d098170313abd8dd3eaaa2d54e3f4d94a8f0cf161321e823",
+    "fixtures/identity/right.csv": "9074d3c6b136b525b886d72fa0f75d177de088ed51af3a023128f93a8c50d816",
+    "fixtures/identity/fact.csv": "3eca528dbdbf84cea07d316bb5e3e6c07e2c4a267178d657a2579f0aa729d7af",
+    "fixtures/identity/aliases.csv": "8e2e5541a6aae32b9e21f25ba54de949d8f27ac90eeab6ad4adee1e2edd487f6",
+    "fixtures/identity/model.yaml": "b16d6622a53cb2fa59e8b058b8ba3e8d864351c2ff47a113cc4fa673068f5aa2"
+  }
+}
