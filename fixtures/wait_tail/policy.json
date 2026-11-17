@@ -1,0 +1,9 @@
+{
+  "case_id": "station-wait-tail-01",
+  "covered_fact_event_id": "R00003",
+  "arrival_roster_complete": true,
+  "p95_order_rule": "nearest_rank_ceil_0_95_n",
+  "sla_threshold_seconds": 210,
+  "observation_horizon_seconds": 300,
+  "eligible_contracts": ["boarded_service", "arrival_experience"]
+}

@@ -1,0 +1,16 @@
+{
+  "date": "fixtures/dim_date.csv",
+  "model": "contracts/model.yaml",
+  "observations": "fixtures/wait_tail/observations.csv",
+  "policy": "fixtures/wait_tail/policy.json",
+  "ridership": "fixtures/fct_ridership.csv",
+  "sha256": {
+    "contracts/model.yaml": "d013cea08509e9c1b0b9fe44d6887a81686308ada0d329b13dff25df037c8fad",
+    "fixtures/dim_date.csv": "8cc51980d667d1d052f2691fad1a616bf7a481d2f8b630ce89afbb99895cea0d",
+    "fixtures/dim_station.csv": "7d772074a823edebbfe974a0669980732a3b5644cde7e2e6325dcd286fdc74b0",
+    "fixtures/fct_ridership.csv": "88582612ae2cfd37aa22c22143af6dbe2aaba1e6dc19fb095acd368f80d2e363",
+    "fixtures/wait_tail/observations.csv": "c5a2a8e481bad2bdca8617910ec6e2aa238fc0a2d6cd119c64ab23a0d0984b18",
+    "fixtures/wait_tail/policy.json": "ad44815afada00d8fc117425260cc738e332579ee3cca803c59ce0d8907a0785"
+  },
+  "station": "fixtures/dim_station.csv"
+}
