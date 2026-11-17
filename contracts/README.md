@@ -92,6 +92,7 @@ snowflake:
 | `grain` | 是 | 非空且不重复的列名列表，用于粒度唯一性核验 |
 | `refs` | 否 | 维度引用列表 |
 | `measures` | 是 | 非空度量列表 |
+| `aggregation_paths` | 否 | 事实级聚合路径声明；缺省不启用，见下 |
 
 #### `refs[]`
 
@@ -130,6 +131,50 @@ snowflake:
 - `non_additive` 不得使用 `sum`。
 - `ratio` 必须 `agg: ratio`，且分子、分母存在；工具不直接对比率列求和。
 - `sum` / `avg` 的源列必须推断为数值类型。
+
+#### `aggregation_paths[]`（可选）
+
+事实级聚合路径声明：一条路径把某个度量沿一组维度角色汇总，并声明连接保留语义。工具只按**声明的路径**在样例数据上推演贡献次数，不读取、不推断、不执行任何用户 SQL。缺省不声明即完全保持旧契约行为。
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `name` | 是 | 事实内唯一的路径名；报告与台账以 `事实名.路径名` 定位 |
+| `measure` | 是 | 本事实已声明的度量名 |
+| `axes` | 是 | 非空的分组轴列表，每项解析到本事实的**唯一引用**（见下） |
+| `retain` | 是 | `inner`：任一轴无匹配则事实行不参与结果；`left`：无匹配保留一次空维成员贡献 |
+
+轴解析规则：
+
+- 轴先按 `refs[].role` 匹配；没有 role 且该维度在本事实只被引用一次时，允许直接用维度名。
+- 同一维度在本事实被引用多次时必须显式写 role；否则报 `DIM-AGG-005`。
+- 轴必须解析到本事实内的引用，未知轴报 `DIM-AGG-004`。
+- 同一路径内不要重复轴，也不要让两个轴解析到同一个引用（`DIM-AGG-006`）。
+- `name` 重复报 `DIM-AGG-002`，`measure` 未知报 `DIM-AGG-003`，结构问题报 `DIM-AGG-001`，`retain` 非法报 `DIM-AGG-007`。
+
+示例：
+
+```yaml
+aggregation_paths:
+  - name: revenue_by_fare_band_payment
+    measure: revenue_amount
+    axes: [fare_band, payment_method]   # role 名
+    retain: inner
+  - name: transactions_by_station_date
+    measure: transaction_count
+    axes: [station, accounting_date]
+    retain: left
+```
+
+裁定语义（详见 [docs/CODES.md](../docs/CODES.md)）：
+
+- 以事实行身份（行序号）为基准，按每个轴引用键在维表中的真实匹配数，推演多轴连接后**单行贡献次数**；`left` 下无匹配轴按一次空成员贡献计，因此另一轴的多匹配仍会放大。
+- 仅当度量是 `additive` 且通过既有列/类型/空值检查时，才逐行计数：
+  - 所有参与行恰好贡献一次 → `safe`；
+  - 有行贡献超过一次且无丢失 → `amplified`；
+  - 有行贡献为零且无放大 → `incomplete`；
+  - 两者同时存在 → `mixed`（不把抵消后的行数相等当作安全）。
+- 比率、`non_additive`、以及路径轴命中 `semi_additive_axis` 的半可加度量 → `measure_blocked`；不会因样例恰好只有一行而放行。
+- 缺列、缺粒度列或前置度量/数据检查不可靠 → `indeterminate`，不当作 `safe`。
 
 ## 一致性维度
 

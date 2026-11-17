@@ -43,7 +43,50 @@ CREATE TABLE IF NOT EXISTS metric_snapshots (
 );
 CREATE INDEX IF NOT EXISTS idx_findings_run ON findings(run_pk, ordinal);
 CREATE INDEX IF NOT EXISTS idx_metrics_run ON metric_snapshots(run_pk, metric_name);
+CREATE TABLE IF NOT EXISTS aggregation_path_runs (
+    pk INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_pk INTEGER NOT NULL REFERENCES runs(pk),
+    run_id TEXT NOT NULL,
+    path_key TEXT NOT NULL,
+    fact TEXT NOT NULL,
+    path_name TEXT NOT NULL,
+    measure TEXT NOT NULL,
+    retain TEXT NOT NULL,
+    verdict TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    fact_rows INTEGER,
+    participating_rows INTEGER,
+    lost_rows INTEGER,
+    amplified_rows INTEGER,
+    total_contributions INTEGER,
+    detail_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agg_paths_run
+    ON aggregation_path_runs(run_pk, path_name);
+CREATE INDEX IF NOT EXISTS idx_agg_paths_run_id
+    ON aggregation_path_runs(run_id, path_name);
 """
+
+
+def _ensure_schema(connection: sqlite3.Connection) -> None:
+    """Add new tables to legacy ledgers in place without touching history."""
+    connection.executescript(SCHEMA)
+
+
+def _path_rows(report: dict[str, Any]) -> list[tuple]:
+    metric = report.get("metrics", {}).get("aggregation_paths") or {}
+    rows = []
+    for key, entry in sorted((metric.get("paths") or {}).items()):
+        counts = entry.get("counts") or {}
+        rows.append((
+            key, entry.get("fact", ""), entry.get("path", key.rsplit(".", 1)[-1]),
+            entry.get("measure", ""), entry.get("retain", ""), entry.get("verdict", ""),
+            entry.get("reason", ""), counts.get("fact_rows"),
+            counts.get("participating_rows"), counts.get("lost_rows"),
+            counts.get("amplified_rows"), counts.get("total_contributions"),
+            canonical_json(entry),
+        ))
+    return rows
 
 
 def _db_path(out_dir: str | Path) -> Path:
@@ -55,7 +98,7 @@ def append_run(out_dir: str | Path, report: dict[str, Any],
     path = _db_path(out_dir)
     connection = sqlite3.connect(path)
     try:
-        connection.executescript(SCHEMA)
+        _ensure_schema(connection)
         summary = report["summary"]
         with connection:
             cursor = connection.execute(
@@ -83,6 +126,14 @@ def append_run(out_dir: str | Path, report: dict[str, Any],
                 "INSERT INTO metric_snapshots (run_pk, metric_name, value_json) VALUES (?, ?, ?)",
                 [(run_pk, name, canonical_json(value))
                  for name, value in sorted(report["metrics"].items())],
+            )
+            connection.executemany(
+                """INSERT INTO aggregation_path_runs
+                (run_pk, run_id, path_key, fact, path_name, measure, retain, verdict,
+                 reason, fact_rows, participating_rows, lost_rows, amplified_rows,
+                 total_contributions, detail_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                [(run_pk, report["run_id"], *row) for row in _path_rows(report)],
             )
         return run_pk
     finally:
@@ -147,10 +198,50 @@ def read_metrics(out_dir: str | Path, run_pk: int) -> list[dict[str, Any]]:
         connection.close()
 
 
+def read_aggregation_paths(out_dir: str | Path, run_pk: int) -> list[dict[str, Any]]:
+    connection = _read_connection(out_dir)
+    if connection is None:
+        return []
+    try:
+        try:
+            rows = connection.execute(
+                "SELECT * FROM aggregation_path_runs WHERE run_pk = ? ORDER BY path_name",
+                (int(run_pk),)).fetchall()
+        except sqlite3.OperationalError:  # unmigrated legacy ledger
+            return []
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["detail"] = json.loads(item.pop("detail_json"))
+            result.append(item)
+        return result
+    finally:
+        connection.close()
+
+
+def read_path_verdicts(out_dir: str | Path, run_id: str) -> list[dict[str, Any]]:
+    connection = _read_connection(out_dir)
+    if connection is None:
+        return []
+    try:
+        try:
+            rows = connection.execute(
+                "SELECT run_pk, run_id, path_key, path_name, verdict, reason, "
+                "total_contributions FROM aggregation_path_runs WHERE run_id = ? "
+                "ORDER BY run_pk, path_name", (run_id,)).fetchall()
+        except sqlite3.OperationalError:
+            return []
+        return [dict(row) for row in rows]
+    finally:
+        connection.close()
+
+
 def read_ledger(out_dir: str | Path, run_limit: int = 10,
                 finding_limit: int = 200) -> dict[str, Any]:
     runs = read_runs(out_dir, run_limit)
     findings = read_findings(out_dir, runs[0]["pk"], finding_limit) if runs else []
     metrics = read_metrics(out_dir, runs[0]["pk"]) if runs else []
+    paths = read_aggregation_paths(out_dir, runs[0]["pk"]) if runs else []
     return {"runs": runs, "latest_findings": findings,
-            "latest_metrics": {item["metric_name"]: item["value"] for item in metrics}}
+            "latest_metrics": {item["metric_name"]: item["value"] for item in metrics},
+            "latest_aggregation_paths": paths}

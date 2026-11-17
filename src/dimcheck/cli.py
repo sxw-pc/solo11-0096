@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .aggregation_paths import check_aggregation_paths
 from .conform import check_conform
 from .contract import ContractError, load_contract
 from .fanout import check_fanout
@@ -50,7 +51,8 @@ def run_once(contract_path: str | Path, out: str | Path,
     metrics: dict[str, Any] = {}
     for name, checker in (
         ("keys", check_keys), ("refs", check_refs), ("fanout", check_fanout),
-        ("measures", check_measures), ("conform", check_conform),
+        ("measures", check_measures), ("aggregation_paths", check_aggregation_paths),
+        ("conform", check_conform),
     ):
         found, detail = checker(contract, dataset)
         findings.extend(found)

@@ -1,6 +1,6 @@
 # 错误码目录
 
-共 43 个稳定错误码。`python -m dimcheck explain` 列出全部；`python -m dimcheck explain DIM-FAN-001` 查看单条。错误码是稳定接口，新增码不得改变既有码的含义。
+共 54 个稳定错误码。`python -m dimcheck explain` 列出全部；`python -m dimcheck explain DIM-FAN-001` 查看单条。错误码是稳定接口，新增码不得改变既有码的含义。
 
 ## 严重级与退出码
 
@@ -106,6 +106,28 @@
 | `DIM-CON-009` | info | 维度未被任何事实直接引用，也不在任何雪花父链上 | 删除未用维度或补充引用 | 声明了 `dim_channel`，无事实使用 |
 
 角色规则由事实内和跨事实两部分组成。`conformed_group` 取字典序最小的成员作为比较基线；成对比较属性集、类型与样例取值域。
+
+## 聚合路径
+
+事实可通过 `facts[].aggregation_paths` 声明“某度量沿一组维度角色汇总”的路径。契约阶段的 `DIM-AGG-001..007` 在加载时阻断（退出码 `1`）；裁定阶段的 `DIM-AGG-010..013` 进入报告与台账。
+
+| 代码 | 级别 | 触发条件 | 修复建议 | 示例 |
+| --- | --- | --- | --- | --- |
+| `DIM-AGG-001` | error | `aggregation_paths` 不是列表、项不是映射、`name`/`measure` 为空、`axes` 为空或轴不是非空字符串 | 按契约参考补齐结构 | `axes: []` |
+| `DIM-AGG-002` | error | 同一事实内聚合路径 `name` 重复 | 路径名在事实内唯一 | 两条都叫 `by_station` |
+| `DIM-AGG-003` | error | `measure` 不是本事实已声明的度量 | 修正度量名或先声明度量 | `measure: missing_metric` |
+| `DIM-AGG-004` | error | 轴既不是任何引用的 role，也不是本事实唯一引用的维度名 | 写 role 或维度名；先声明 ref | `axes: [dim_region]` 但事实未引用 |
+| `DIM-AGG-005` | error | 轴有歧义：同一维度被重复引用却用维度名定位，或 spec 同时命中多个 role | 重复引用时必须显式写唯一 role | 两个日期引用都写 `axes: [dim_date]` |
+| `DIM-AGG-006` | error | 同一路径内重复轴，或多个轴解析到同一引用 | 每个轴对应不同引用 | `axes: [service_date, service_date]` |
+| `DIM-AGG-007` | error | `retain` 不是 `inner` / `left` | 只能用两种保留语义 | `retain: outer` |
+| `DIM-AGG-010` | warning | 裁定为 `amplified` 或 `mixed`：至少一行贡献超过一次 | 修复维键唯一性或调整轴与保留语义 | `left` 下一个天然键匹配两行 |
+| `DIM-AGG-011` | warning | 裁定为 `incomplete`：路径丢弃了事实行且无放大 | 改用 `left`，或修复孤儿外键 | `inner` 下多轴均无匹配 |
+| `DIM-AGG-012` | error | 裁定为 `measure_blocked`：比率、非可加，或路径含半可加禁止轴 | 先聚合分子/分母再派生，或改用合法轴 | 对 `ratio` 度量做 `sum` 路径 |
+| `DIM-AGG-013` | error | 裁定为 `indeterminate`：缺列、缺粒度列或前置度量/数据检查不可靠 | 补列并先修复 `DIM-MEA-*` / 空源问题 | 度量列不在事实表中 |
+
+裁定以事实行**行序号**为身份，绝不使用可能不唯一的粒度键做内部主键。每条路径在 `metrics.aggregation_paths.paths["事实.路径"]` 中给出 `verdict`、`counts`（`fact_rows`、`participating_rows`、`lost_rows`、`amplified_rows`、`total_contributions`）、`prerequisite` 与按稳定行序号定位的有限证据；同时写入 SQLite `aggregation_path_runs` 表，可按 `run_id` + `path_name` 回查每次运行的结论。
+
+`DIM-FAN-001` 仍按单个事实—维引用独立分级，不因路径裁定而改变；路径裁定是同一度量与一组轴的联合结论，二者互补而非替代。
 
 ## 运行边界
 

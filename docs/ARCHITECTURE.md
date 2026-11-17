@@ -14,6 +14,7 @@ CLI 参数
                   ├─ refs      事实→维引用、雪花维、环
                   ├─ fanout    join 放大估算与实测
                   ├─ measures  可加性、比率、聚合安全矩阵
+                  ├─ aggregation_paths  事实级路径贡献推演与裁定
                   └─ conform   conformed 组、角色、总线矩阵
                       └─ 排序与分级
                           ├─ report.json / report.md / report.html
@@ -33,10 +34,13 @@ CLI 参数
 | `keys.py` | 事实粒度、维度代理键/自然键、键空值/缺失 | 只用规范化值 token 判等，避免类型串扰 |
 | `refs.py` | 事实→维成员匹配、未知成员白名单、雪花父子链与环 | 白名单不参与连接匹配，只把孤儿降级 |
 | `fanout.py` | 维键重复度、引用重复键、估算/实测放大率、风险分级 | 按单个事实—维引用独立计算 |
-| `measures.py` | 可加性/聚合方式冲突、半可加轴、比率定义、数值类型、空值、安全矩阵 | 不重写查询，不将半可加度量的部分和当作全局和 |
+| `measures.py` | 可加性/聚合方式冲突、半可加轴、比率定义、数值类型、空值、安全矩阵、路径前置门控 | 不重写查询，不将半可加度量的部分和当作全局和 |
+| `aggregation_paths.py` | 按声明路径逐事实行推演多轴连接贡献，输出 safe/amplified/incomplete/mixed/measure_blocked/indeterminate | 只读样例，不执行 SQL，不用粒度键作内部行身份 |
+| `contract_paths.py` | `facts[].aggregation_paths` 的结构、度量、轴解析、保留语义校验 | 只解析声明，不推断用户查询 |
+| `report_paths.py` | 聚合路径裁定的独立 Markdown/HTML 小节 | 复用同一 report 对象与稳定排序 |
 | `conform.py` | conformed 组属性/类型/取值域、角色规则、总线矩阵覆盖 | 总线矩阵包含雪花父链的闭包 |
 | `report.py` | 报告对象、Markdown/HTML 渲染、四个文件写出 | HTML 内联 CSS，无脚本与外部资源 |
-| `ledger.py` | 建表、追加运行、读取运行/发现项/指标快照 | 只有 INSERT；不 UPDATE、不 DELETE 历史 |
+| `ledger.py` | 建表、追加运行、读取运行/发现项/指标快照/路径裁定 | 只有 INSERT；旧台账按需加表，不 UPDATE、不 DELETE 历史 |
 | `server.py` | 只读 `http.server` 页面与静态报告 | 仅绑定 `127.0.0.1`，写方法返回 405 |
 | `util.py` | 错误码表、发现项、规范 JSON、指纹、时间、路径守卫 | 确定性与安全策略的单一来源 |
 
@@ -59,6 +63,7 @@ CLI 参数
 
 - `fanout` 不依赖 `keys` 的发现项；即使代理键未声明为唯一，也会独立计算连接放大。
 - `measures` 的比率检查先查找同事实的分子、分母，再检查分母零值和分量可加性。
+- `aggregation_paths` 在 `measures` 之后运行，复用同一度量的前置检查；只对声明路径做联合裁定，不改变 `fanout` 的单引用分级。
 - `conform` 的角色规则跨事实聚合；conformed 组以字典序最小的成员作为基线。
 - 总线矩阵先从事实直接引用的维度出发，再沿雪花 `parent` 关系迭代闭包。
 
@@ -86,11 +91,12 @@ CLI 参数
 
 ## 台账
 
-`ledger.sqlite3` 三张表：
+`ledger.sqlite3` 包含三张基础表与追加路径裁定表：
 
 - `runs`：运行主键、`run_id`、工具版本、契约指纹、起止元数据、退出码、结论、计数、报告 epoch；
 - `findings`：所属运行、序号、错误码、严重级、对象、消息、规范 JSON 证据；
-- `metric_snapshots`：所属运行、指标名、规范 JSON 值。
+- `metric_snapshots`：所属运行、指标名、规范 JSON 值；
+- `aggregation_path_runs`：所属运行与 `run_id`、`事实.路径`、度量、保留语义、裁定、计数与完整规范 JSON 明细。
 
 `runs.pk` 自增。每次运行追加一行；发现项与五个指标快照也各追加。读取默认取最近一次运行。数据库文件位于 `--out`，不会写入用户主目录。
 
@@ -108,6 +114,7 @@ CLI 参数
 
 - `conftest.py` 构造最小项目，并提供 socket DNS 守卫；
 - `test_contract`、`test_sources`、`test_keys`、`test_refs`、`test_fanout`、`test_measures`、`test_conform` 覆盖检查语义；
+- `test_aggregation_paths` 覆盖重复角色、inner/left 差异、丢失+放大抵消、比率/半可加阻断、缺列未知、确定性与台账追加；
 - `test_report`、`test_determinism` 覆盖渲染与逐字节稳定；
 - `test_ledger` 覆盖追加与读取；
 - `test_cli` 覆盖退出码、致命错误与 demo；
@@ -117,6 +124,7 @@ CLI 参数
 ## 扩展点
 
 - 新检查器应接收 `(Contract, Dataset)`，返回 `(list[Finding], dict)`；在 `cli.run_once` 的固定顺序中注册，并补报告与测试。
+- 新的路径级裁定应保持“声明的路径”边界：不解析 SQL、不推断未声明的轴，并显式区分阻断、未知与安全，缺省永不回退为 `safe`。
 - 新错误码必须加入 `util.CODES`，同时在 `docs/CODES.md` 说明触发条件与修复方式。
 - 新字段要先在 `contract.py` 校验并加入 dataclass，再在所有引用处显式处理；不要让未知字段静默通过。
 - 新报告格式必须复用同一 `report` 对象和稳定排序；不得引入当前时间、随机数或无序集合输出。

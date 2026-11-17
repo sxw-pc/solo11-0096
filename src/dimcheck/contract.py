@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 import yaml
+from .contract_paths import InvalidPath, parse_aggregation_paths
 from .util import finding, fingerprint, is_network_path, is_sensitive_path
 class ContractError(Exception):
     def __init__(self, findings):
@@ -26,9 +27,13 @@ class Measure:
     name: str; column: str | None; agg: str; additivity: str; unit: str | None = None
     numerator: str | None = None; denominator: str | None = None; semi_additive_axis: str | None = None
 @dataclass(frozen=True)
+class AggregationPath:
+    name: str; measure: str; axes: tuple[str, ...]; retain: str
+@dataclass(frozen=True)
 class Fact:
     name: str; source: str; format: str; grain: tuple[str, ...]
     refs: tuple[Ref, ...]; measures: tuple[Measure, ...]
+    aggregation_paths: tuple[AggregationPath, ...] = ()
 @dataclass(frozen=True)
 class Contract:
     name: str; root: Path; max_rows: int; run_epoch: int; null_tokens: tuple[str, ...]
@@ -165,6 +170,15 @@ def _measure(raw: Any, pointer: str) -> Measure:
         denominator=denominator,
         semi_additive_axis=_str(item, "semi_additive_axis", pointer, optional=True),
     )
+def _aggregation_paths(item: dict, refs: tuple[Ref, ...], measures: tuple[Measure, ...],
+                       pointer: str) -> tuple[AggregationPath, ...]:
+    try:
+        return parse_aggregation_paths(item, refs, measures, pointer)
+    except InvalidPath as exc:
+        raise ContractError([finding(exc.code, "contract", exc.pointer,
+                                     exc.message, exc.evidence)]) from exc
+
+
 def _fact(raw: Any, index: int) -> Fact:
     pointer = f"facts[{index}]"
     item = _mapping(raw, pointer)
@@ -181,6 +195,7 @@ def _fact(raw: Any, index: int) -> Fact:
         name=_str(item, "name", pointer), source=_str(item, "source", pointer),
         format=_format(item, pointer), grain=_str_list(item, "grain", pointer),
         refs=refs, measures=measures,
+        aggregation_paths=_aggregation_paths(item, refs, measures, pointer),
     )
 def _validate_model(dimensions: tuple[Dimension, ...], facts: tuple[Fact, ...]) -> None:
     dim_names = [item.name for item in dimensions]

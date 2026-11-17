@@ -148,6 +148,40 @@ def _standard_check(fact, measure, table) -> tuple[list, dict[str, Any]]:
     return findings, matrix
 
 
+def measure_gate(fact, measure, table, axis_dimensions: tuple[str, ...]) -> dict[str, Any]:
+    """Prerequisite verdict for a declared path: blocked, indeterminate, or analyze."""
+    base = {"measure": measure.name, "additivity": measure.additivity,
+            "agg": measure.agg, "axes": list(axis_dimensions)}
+    if measure.additivity == "ratio" or measure.agg == "ratio":
+        return {**base, "state": "blocked", "reason": "ratio_direct_sum"}
+    if measure.additivity == "non_additive":
+        return {**base, "state": "blocked", "reason": "non_additive"}
+    if measure.additivity == "semi_additive":
+        axis = measure.semi_additive_axis
+        available = {ref.dimension for ref in fact.refs}
+        if not axis or axis not in available:
+            return {**base, "state": "blocked", "reason": "semi_additive_axis_invalid",
+                    "semi_additive_axis": axis}
+        if axis in axis_dimensions:
+            return {**base, "state": "blocked", "reason": "semi_additive_axis_in_path",
+                    "semi_additive_axis": axis}
+    if measure.additivity in {"additive", "semi_additive"} and measure.agg != "sum":
+        return {**base, "state": "blocked", "reason": "aggregation_conflict"}
+    findings, matrix = _standard_check(fact, measure, table)
+    codes = {item.code for item in findings}
+    for code, reason in (("DIM-MEA-001", "missing_measure_column"),
+                         ("DIM-MEA-005", "measure_not_numeric"),
+                         ("DIM-MEA-006", "measure_contains_null")):
+        if code in codes:
+            return {**base, "state": "indeterminate", "reason": reason,
+                    "column": measure.column, "dtype": matrix.get("dtype")}
+    semi = measure.additivity == "semi_additive"
+    state = "analyze" if matrix["safe_to_sum"] or semi else "indeterminate"
+    reason = "additive_safe" if matrix["safe_to_sum"] else (
+        "semi_additive_allowed_axis" if semi else "measure_not_safe_to_sum")
+    return {**base, "state": state, "reason": reason, "dtype": matrix.get("dtype")}
+
+
 def check_measures(contract: Contract, dataset: Dataset) -> tuple[list, dict]:
     findings = []
     matrix: dict[str, Any] = {}

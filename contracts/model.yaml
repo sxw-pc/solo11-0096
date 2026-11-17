@@ -116,6 +116,15 @@ facts:
         additivity: semi_additive
         semi_additive_axis: dim_date
         unit: balance
+    aggregation_paths:
+      - name: rides_by_station
+        measure: ride_count
+        axes: [station]
+        retain: inner
+      - name: rides_by_service_date_station
+        measure: ride_count
+        axes: [service_date, station]
+        retain: inner
 
   - name: fct_fare_revenue
     source: fct_fare_revenue.csv
@@ -160,3 +169,12 @@ facts:
         numerator: revenue_amount
         denominator: transaction_count
         unit: currency
+    aggregation_paths:
+      - name: revenue_by_fare_band_payment
+        measure: revenue_amount
+        axes: [fare_band, payment_method]
+        retain: inner
+      - name: transactions_by_station_accounting_date
+        measure: transaction_count
+        axes: [station, accounting_date]
+        retain: left

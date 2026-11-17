@@ -1,7 +1,8 @@
 import sqlite3
 
 from dimcheck.cli import run_once
-from dimcheck.ledger import DB_NAME, read_findings, read_ledger, read_metrics, read_runs
+from dimcheck.ledger import (DB_NAME, read_aggregation_paths, read_findings,
+                             read_ledger, read_metrics, read_runs)
 
 FACT_HEADER = ["sale_id", "customer_key", "product_key", "date_key", "amount",
                "quantity", "avg_price", "on_hand"]
@@ -38,18 +39,20 @@ def test_findings_and_metric_snapshots_are_stored(project, tmp_path):
     with sqlite3.connect(out / DB_NAME) as connection:
         count = connection.execute("SELECT COUNT(*) FROM metric_snapshots").fetchone()[0]
         runs = connection.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
-    assert count == 5
+    assert count == 6
     assert runs == 1
     metrics = read_metrics(out, run_pk)
     assert [item["metric_name"] for item in metrics] == [
-        "conform", "fanout", "keys", "measures", "refs"
+        "aggregation_paths", "conform", "fanout", "keys", "measures", "refs"
     ]
     assert read_ledger(out)["latest_metrics"]["measures"]["summary"]["total"] == 5
+    assert read_aggregation_paths(out, run_pk) == []
 
 
 def test_missing_ledger_reads_as_empty(tmp_path):
     assert read_runs(tmp_path) == []
     assert read_findings(tmp_path, 1) == []
     assert read_ledger(tmp_path) == {
-        "runs": [], "latest_findings": [], "latest_metrics": {}
+        "runs": [], "latest_findings": [], "latest_metrics": {},
+        "latest_aggregation_paths": [],
     }

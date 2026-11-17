@@ -7,6 +7,7 @@ from typing import Any
 
 from . import __version__
 from .contract import Contract
+from .report_paths import render_html_paths, render_markdown_paths
 from .sources import Dataset
 from .util import (Finding, canonical_json, epoch_iso, exit_code_for, pretty_json,
                    sort_findings, write_text)
@@ -117,6 +118,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         [[fact, ", ".join(item["dimensions"]), ", ".join(item["roles"])]
          for fact, item in sorted(bus.items())],
     ))
+    lines.extend(render_markdown_paths(report))
     lines.extend(["", "## 数据画像", ""])
     profile_rows = []
     for table_name, table in sorted(report["dataset"]["tables"].items()):
@@ -181,6 +183,7 @@ def render_html(report: dict[str, Any]) -> str:
         for column, profile in sorted(table["profiles"].items())
     )
     verdict = html.escape(report["verdict"])
+    path_section = render_html_paths(report)
     css = """
     :root{color-scheme:light dark;--bg:#f6f7f9;--fg:#17202a;--muted:#5d6d7e;--card:#fff;
     --line:#d5dbe1;--err:#b42318;--warn:#8a6100;--ok:#177245;--accent:#245a8d}
@@ -225,7 +228,7 @@ def render_html(report: dict[str, Any]) -> str:
 <th>可加性</th><th>可安全求和</th><th>可用聚合</th><th>原因</th></tr></thead>
 <tbody>{measure_rows}</tbody></table></section>
 <section><h2>总线矩阵</h2><table><thead><tr><th>事实</th><th>引用维度</th>
-<th>角色</th></tr></thead><tbody>{bus_rows}</tbody></table></section>
+<th>角色</th></tr></thead><tbody>{bus_rows}</tbody></table></section>{path_section}
 <section><h2>数据画像</h2><table><thead><tr><th>表</th><th>列</th><th>类型</th>
 <th>空值</th><th>基数</th><th>最小</th><th>最大</th></tr></thead>
 <tbody>{profile_rows}</tbody></table></section>
