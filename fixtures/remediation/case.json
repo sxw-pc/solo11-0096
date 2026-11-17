@@ -1,0 +1,37 @@
+{
+  "case_id": "afc-remediation-2026-01",
+  "contract": "contracts/model.yaml",
+  "sources": [
+    "fixtures/dim_date.csv",
+    "fixtures/dim_accounting_date.csv",
+    "fixtures/dim_line.csv",
+    "fixtures/dim_station.csv",
+    "fixtures/dim_fare_band.csv",
+    "fixtures/dim_payment.jsonl",
+    "fixtures/fct_ridership.csv",
+    "fixtures/fct_fare_revenue.csv"
+  ],
+  "append_facts": {
+    "fct_ridership": "fixtures/remediation/ridership-add.csv",
+    "fct_fare_revenue": "fixtures/remediation/revenue-add.csv"
+  },
+  "supplements": {
+    "dim_station": "fixtures/remediation/station-supplement.csv",
+    "dim_line": "fixtures/remediation/line-supplement.csv"
+  },
+  "sha256": {
+    "fixtures/dim_payment.jsonl": "070ea86bff67eeeb40024bfd71ec57d1b969688ec05c5450afe8b997473e5f01",
+    "fixtures/remediation/revenue-add.csv": "8842bd868ec5fcea8b673b7669b82c5b5313d6e5531a3ed2ee96f41f9f6262f0",
+    "contracts/model.yaml": "d013cea08509e9c1b0b9fe44d6887a81686308ada0d329b13dff25df037c8fad",
+    "fixtures/fct_fare_revenue.csv": "1df76a2688fea3314a1bdd9f70405b3ebdf93a4dbafd43b17092e8edc6903395",
+    "fixtures/remediation/station-supplement.csv": "dee71d948742c5a6fde582019698acd4de9b4307af528bdb6825da5764ba8c02",
+    "fixtures/remediation/ridership-add.csv": "81a0e1df0d30b2805a4178d21092f40b1c7f05b300d915d1477a66ec8c115ecb",
+    "fixtures/dim_station.csv": "7d772074a823edebbfe974a0669980732a3b5644cde7e2e6325dcd286fdc74b0",
+    "fixtures/dim_accounting_date.csv": "8cc51980d667d1d052f2691fad1a616bf7a481d2f8b630ce89afbb99895cea0d",
+    "fixtures/dim_fare_band.csv": "59f5e3010e5f93c38d10380a952be5ac009ce9da8ae0dad5596052bdb019a0f2",
+    "fixtures/remediation/line-supplement.csv": "41ffc6c22600717b5ca8c74ea8b5dbc7d51a5f45c78b0208c79fa5bd414f6103",
+    "fixtures/dim_date.csv": "8cc51980d667d1d052f2691fad1a616bf7a481d2f8b630ce89afbb99895cea0d",
+    "fixtures/fct_ridership.csv": "88582612ae2cfd37aa22c22143af6dbe2aaba1e6dc19fb095acd368f80d2e363",
+    "fixtures/dim_line.csv": "a3f6da90678d90caef6382412c42aa624d1394c7a4e09e486e9b0243e3e49dae"
+  }
+}

@@ -1,0 +1,2 @@
+revenue_id,accounting_date_key,station_key,fare_band_key,payment_key,revenue_amount,transaction_count,refund_amount
+V99001,1,99,3,2,14.0,5,0.0
