@@ -14,10 +14,10 @@ from .conform import check_conform
 from .contract import ContractError, load_contract
 from .fanout import check_fanout
 from .keys import check_keys
-from .ledger import append_run
 from .measures import check_measures
 from .refs import check_refs
-from .report import build_report, write_reports
+from .report import build_report
+from .publishing import PublicationFault, publish_run, recover
 from .server import make_server
 from .sources import SourceError, check_declared_schema, load_dataset
 from .util import (CODES, PathError, ensure_out_dir, guard_contract_path, repo_root,
@@ -62,13 +62,14 @@ def run_once(contract_path: str | Path, out: str | Path,
         "started_at": started_at,
         "duration_ms": max(0, int((time.monotonic() - started) * 1000)),
     }
-    paths = write_reports(output_dir, report, run_meta)
-    append_run(output_dir, report, run_meta)
+    publication = publish_run(output_dir, report, run_meta)
+    paths = publication["paths"]
     if not quiet:
         summary = report["summary"]
         print(f"dimcheck {report['run_id']} verdict={report['verdict']} "
               f"errors={summary['errors']} warnings={summary['warnings']} "
               f"infos={summary['infos']}")
+        print(f"publication: {publication['publication_id']}")
         print(f"report: {paths['html']}")
     return report, paths
 
@@ -83,7 +84,7 @@ def _handle_fatal(exc: Exception) -> int:
         else:
             print(f"{exc.code} {exc.message}", file=sys.stderr)
         return 1
-    if isinstance(exc, OSError):
+    if isinstance(exc, (OSError, PublicationFault)):
         print(f"DIM-IO-001 {exc}", file=sys.stderr)
         return 1
     print(f"DIM-INTERNAL-001 {type(exc).__name__}: {exc}", file=sys.stderr)
@@ -130,6 +131,15 @@ def _command_explain(args) -> int:
 
 def _command_serve(args) -> int:
     out = Path(args.out)
+    # Settle any interrupted publication before exposing a single coherent view.
+    try:
+        recovery = recover(out)
+    except OSError as exc:
+        print(f"DIM-IO-001 无法恢复输出目录: {exc}", file=sys.stderr)
+        return 1
+    for item in recovery["isolated"]:
+        print(f"dimcheck 已隔离不完整发布 {item['staging_id']}: {item['reason']}",
+              file=sys.stderr)
     if not (out / "report.json").is_file():
         print(f"DIM-IO-001 未找到报告: {out / 'report.json'}", file=sys.stderr)
         return 1

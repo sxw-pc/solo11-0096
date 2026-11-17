@@ -120,3 +120,11 @@ def offline_guard(monkeypatch):
         return real(host, *args, **kwargs)
 
     monkeypatch.setattr(socket, "getaddrinfo", guarded)
+
+
+@pytest.fixture(autouse=True)
+def _clear_publication_fault_env(monkeypatch):
+    """Publication fault injection uses process-global environment variables."""
+    monkeypatch.delenv("DIMCHECK_FAULT", raising=False)
+    monkeypatch.delenv("DIMCHECK_FAULT_COUNT", raising=False)
+    yield

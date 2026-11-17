@@ -69,10 +69,13 @@ python scripts/check_limits.py
 | `report.json` | 完整结论、分级发现项、指标快照、数据画像；确定性排序 |
 | `report.md` | 可归档 Markdown 报告 |
 | `report.html` | 自包含 HTML：内联 CSS，无脚本、外部字体、图标或 CDN |
-| `run.json` | 运行元数据；`started_at` 与 `duration_ms` 是唯一允许非确定性的字段 |
-| `ledger.sqlite3` | 追加式 SQLite 台账：运行、发现项、指标快照 |
+| `run.json` | 运行元数据与 `publication_id`/`report_digest`；`started_at`、`duration_ms` 允许非确定性 |
+| `publications/pub-<pk>-<摘要>/` | 不可变发布单元：四份文件 + 逐文件 SHA-256 的 `manifest.json` |
+| `current`、顶层 `report.*` | 原子切换的最新视图符号链接，始终指向一个完整且摘要吻合的发布单元 |
+| `quarantine/` | 恢复时隔离的未完成或摘要损坏单元 |
+| `ledger.sqlite3` | 追加式 SQLite 台账：运行、发现项、指标快照、发布与隔离记录 |
 
-报告文件在重复运行时更新；台账按自增主键追加，不删除历史。`run_id` 由数据集名和契约指纹派生。
+每次完成的稽核生成独立 `publication_id = pub-<台账自增主键>-<报告内容摘要前12位>`；即使契约指纹相同，样例数据变化也会产生不同的发布单元与摘要。报告正文（`report.json/md/html`）对同一输入逐字节稳定，不含时间或发布 id；这些元数据只位于 `run.json`、台账与发布清单。文件与数据库分属不同事务，发布按“写文件 → 台账提交 → 定稿 → 原子切视图”幂等推进，中断后下次 `run`/`serve` 重算实际摘要恢复：可核实则补交台账成为最新，不可核实则隔离并保留上一成功视图。台账按自增主键追加，不删除历史；旧版扁平输出迁移后标记为 `legacy_unverified`，不默认视为新协议已验证。
 
 ## 检查能力
 
@@ -109,7 +112,7 @@ python scripts/check_limits.py
 
 ## 确定性与时间
 
-- 除 `run.json` 的 `started_at` / `duration_ms` 外，同一输入、同样 `SOURCE_DATE_EPOCH` 下，`report.json`、`report.md`、`report.html` 逐字节一致。
+- 除 `run.json` 的 `started_at` / `duration_ms` / `publication_id` / `report_digest` 外，同一输入、同样 `SOURCE_DATE_EPOCH` 下，`report.json`、`report.md`、`report.html` 逐字节一致。
 - 发现项按 `(错误码, 对象名, 规范化证据)` 排序；证据中的列表与映射有稳定顺序。
 - 报告时间来自 `SOURCE_DATE_EPOCH`；缺省时使用契约中的 `run_epoch`。报告正文不读取系统当前时间。
 - 指纹使用规范 JSON 的 SHA-256；不使用随机数或哈希种子写报告。

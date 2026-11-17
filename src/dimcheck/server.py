@@ -7,7 +7,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .ledger import read_ledger
+from .ledger import read_isolated_publications, read_ledger, read_publications
+from .pubprotocol import CURRENT_LINK, verify_unit
 from .util import pretty_json
 
 STATIC = {
@@ -24,6 +25,25 @@ SECURITY = {
 }
 
 
+def _publications_payload(out: Path) -> dict:
+    """Publication registry plus a fresh byte-level check of the current view."""
+    publications = read_publications(out)
+    isolated = read_isolated_publications(out)
+    current = out / CURRENT_LINK
+    current_id = None
+    current_verified = False
+    if current.is_symlink():
+        try:
+            current_id = current.readlink().name
+            current_verified = verify_unit(current)[0]
+        except OSError:
+            current_verified = False
+    return {"current_publication_id": current_id,
+            "current_view_verified": current_verified,
+            "publications": publications,
+            "isolated": isolated}
+
+
 def _index(out: Path) -> bytes:
     report_path = out / "report.json"
     report = None
@@ -36,7 +56,28 @@ def _index(out: Path) -> bytes:
         ledger = read_ledger(out)
     except Exception:
         ledger = {"runs": [], "latest_findings": []}
-    if report:
+    try:
+        publications = _publications_payload(out)
+    except Exception:
+        publications = {"current_publication_id": None,
+                        "current_view_verified": False,
+                        "publications": [], "isolated": []}
+    current_id = publications.get("current_publication_id")
+    if report and current_id:
+        summary = report["summary"]
+        headline = (
+            f"<h1>维模体检台 <span class='pill {html.escape(report['verdict'])}'>"
+            f"{html.escape(report['verdict'])}</span></h1>"
+            f"<p>契约 <code>{html.escape(report['contract']['name'])}</code> · "
+            f"Run ID <code>{html.escape(report['run_id'])}</code> · "
+            f"发布单元 <code>{html.escape(str(current_id))}</code> · "
+            f"摘要校验 {'通过' if publications['current_view_verified'] else '失败'} · "
+            f"error {summary['errors']} / warning {summary['warnings']} / info {summary['infos']}</p>"
+            "<p><a href='/report.html'>HTML 报告</a> · <a href='/report.md'>Markdown</a> · "
+            "<a href='/report.json'>JSON</a> · <a href='/ledger.json'>台账 JSON</a> · "
+            "<a href='/publications.json'>发布清单</a></p>"
+        )
+    elif report:
         summary = report["summary"]
         headline = (
             f"<h1>维模体检台 <span class='pill {html.escape(report['verdict'])}'>"
@@ -45,12 +86,14 @@ def _index(out: Path) -> bytes:
             f"Run ID <code>{html.escape(report['run_id'])}</code> · "
             f"error {summary['errors']} / warning {summary['warnings']} / info {summary['infos']}</p>"
             "<p><a href='/report.html'>HTML 报告</a> · <a href='/report.md'>Markdown</a> · "
-            "<a href='/report.json'>JSON</a> · <a href='/ledger.json'>台账 JSON</a></p>"
+            "<a href='/report.json'>JSON</a> · <a href='/ledger.json'>台账 JSON</a> · "
+            "<a href='/publications.json'>发布清单</a></p>"
         )
     else:
         headline = ("<h1>维模体检台</h1><p>尚无 report.json。请先运行 "
                     "<code>python -m dimcheck run</code>。</p>"
-                    "<p><a href='/ledger.json'>台账 JSON</a></p>")
+                    "<p><a href='/ledger.json'>台账 JSON</a> · "
+                    "<a href='/publications.json'>发布清单</a></p>")
     rows = "".join(
         "<tr><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td>"
         "<td>{}</td><td>{}</td></tr>".format(
@@ -117,11 +160,27 @@ def make_server(out_dir: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                     return
                 self._respond(200, "application/json; charset=utf-8", payload, send_body)
                 return
+            if path == "/publications.json":
+                try:
+                    payload = pretty_json(_publications_payload(out)).encode("utf-8")
+                except Exception:
+                    self._respond(500, "application/json; charset=utf-8",
+                                  b'{"error":"publications_unreadable"}', send_body)
+                    return
+                self._respond(200, "application/json; charset=utf-8", payload, send_body)
+                return
             route = STATIC.get(path)
             if route is None or ".." in path:
                 self._respond(404, "text/plain; charset=utf-8", b"not found\n", send_body)
                 return
             content_type, filename = route
+            # Never serve a view that fails byte-level verification (e.g. a
+            # corrupted unit whose quarantine is pending a writer-side recovery).
+            current = out / CURRENT_LINK
+            if not current.exists() or not verify_unit(current)[0]:
+                self._respond(404, "text/plain; charset=utf-8",
+                              b"current view unavailable\n", send_body)
+                return
             try:
                 payload = (out / filename).read_bytes()
             except OSError:

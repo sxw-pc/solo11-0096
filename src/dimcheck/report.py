@@ -234,7 +234,52 @@ def render_html(report: dict[str, Any]) -> str:
 """
 
 
+def build_run_record(report: dict[str, Any], run_meta: dict[str, Any],
+                     publication_id: str | None = None,
+                     report_digest: str | None = None) -> dict[str, Any]:
+    """Metadata rendered into run.json.
+
+    Wall-clock timing and the publication id live only here (and in the ledger
+    /publication manifest); they never enter the deterministic report bodies.
+    """
+    record = {
+        "run_id": report["run_id"], "tool": "dimcheck", "version": __version__,
+        "started_at": run_meta["started_at"], "duration_ms": run_meta["duration_ms"],
+        "exit_code": report["exit_code"], "verdict": report["verdict"],
+        "contract_fingerprint": report["contract"]["fingerprint"],
+        "artifacts": {"json": "report.json", "markdown": "report.md",
+                      "html": "report.html"},
+    }
+    if publication_id is not None:
+        record["publication_id"] = publication_id
+    if report_digest is not None:
+        record["report_digest"] = report_digest
+    return record
+
+
+def render_payloads(report: dict[str, Any], run_meta: dict[str, Any],
+                    publication_id: str | None = None,
+                    report_digest: str | None = None) -> dict[str, str]:
+    """Render the four publication artifacts as strings without touching disk.
+
+    The JSON/Markdown/HTML payloads depend only on deterministic inputs; the run
+    payload is the only artifact allowed to carry timing/publication metadata.
+    """
+    return {
+        "json": pretty_json(report) + "\n",
+        "markdown": render_markdown(report) + "\n",
+        "html": render_html(report),
+        "run": pretty_json(build_run_record(
+            report, run_meta, publication_id, report_digest)) + "\n",
+    }
+
+
 def write_reports(out: Path, report: dict[str, Any], run_meta: dict[str, Any]) -> dict[str, Path]:
+    """Compatibility writer used outside the publication protocol.
+
+    The CLI publishes immutable units via :mod:`dimcheck.publishing`; this
+    helper remains for callers that only need the four flat files.
+    """
     out.mkdir(parents=True, exist_ok=True)
     paths = {
         "json": out / "report.json",
@@ -242,15 +287,9 @@ def write_reports(out: Path, report: dict[str, Any], run_meta: dict[str, Any]) -
         "html": out / "report.html",
         "run": out / "run.json",
     }
-    write_text(paths["json"], pretty_json(report) + "\n")
-    write_text(paths["markdown"], render_markdown(report) + "\n")
-    write_text(paths["html"], render_html(report))
-    run_record = {
-        "run_id": report["run_id"], "tool": "dimcheck", "version": __version__,
-        "started_at": run_meta["started_at"], "duration_ms": run_meta["duration_ms"],
-        "exit_code": report["exit_code"], "verdict": report["verdict"],
-        "contract_fingerprint": report["contract"]["fingerprint"],
-        "artifacts": {"json": "report.json", "markdown": "report.md", "html": "report.html"},
-    }
-    write_text(paths["run"], pretty_json(run_record) + "\n")
+    payloads = render_payloads(report, run_meta)
+    write_text(paths["json"], payloads["json"])
+    write_text(paths["markdown"], payloads["markdown"])
+    write_text(paths["html"], payloads["html"])
+    write_text(paths["run"], payloads["run"])
     return paths
