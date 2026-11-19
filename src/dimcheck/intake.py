@@ -75,6 +75,94 @@ def inspect_manifest(manifest_path: str | Path, source_root: str | Path) -> dict
             "files": sorted(files, key=lambda item: item["dimension"])}
 
 
+def read_receipt(ledger_path: str | Path, batch_id: str) -> dict:
+    """Read one registered receipt back from the append-only intake ledger.
+
+    The receipt contains the frozen per-file digests; it deliberately does not
+    contain a re-parsed copy of the source rows. Callers must re-verify the
+    files against ``source_root`` before trusting them.
+    """
+    database = Path(ledger_path)
+    if not database.is_file():
+        raise ValueError("intake_receipt_missing")
+    with sqlite3.connect(database) as connection:
+        connection.row_factory = sqlite3.Row
+        try:
+            batch = connection.execute(
+                "SELECT batch_id, producer, manifest_sha, state "
+                "FROM intake_batch WHERE batch_id=?", (batch_id,),
+            ).fetchone()
+            files = connection.execute(
+                "SELECT dimension, relative_path, sha256, rows FROM intake_file "
+                "WHERE batch_id=? ORDER BY dimension", (batch_id,),
+            ).fetchall()
+        except sqlite3.OperationalError as exc:
+            raise ValueError("intake_receipt_missing") from exc
+    if batch is None:
+        raise ValueError("intake_receipt_missing")
+    return {
+        "batch_id": batch["batch_id"], "producer": batch["producer"],
+        "manifest_sha": batch["manifest_sha"], "state": batch["state"],
+        "files": [dict(item) for item in files],
+    }
+
+
+def verify_receipt(receipt: dict, source_root: str | Path) -> dict:
+    """Re-hash the registered delivery files and recount their CSV rows.
+
+    This is the independent verification entry: it never trusts a stored digest
+    or row count by itself. A changed source byte or row count is reported as an
+    issue, which makes any plan that cites the receipt pending instead of
+    confirmed.
+    """
+    root = Path(source_root).resolve()
+    issues: list[dict] = []
+    verified: list[dict] = []
+    for item in receipt.get("files") or []:
+        dimension = item.get("dimension")
+        relative = item.get("relative_path")
+        try:
+            target = _inside(root, str(relative))
+        except ValueError:
+            issues.append({"code": "DIM-TO-005", "dimension": dimension,
+                           "message": "收据路径越界",
+                           "evidence": {"relative_path": relative}})
+            continue
+        if target.suffix.lower() != ".csv":
+            issues.append({"code": "DIM-TO-005", "dimension": dimension,
+                           "message": "收据不是 CSV 交付",
+                           "evidence": {"relative_path": relative}})
+            continue
+        try:
+            raw = target.read_bytes()
+        except OSError as exc:
+            issues.append({"code": "DIM-TO-005", "dimension": dimension,
+                           "message": "收据来源文件不可读",
+                           "evidence": {"relative_path": relative,
+                                        "error": type(exc).__name__}})
+            continue
+        digest = hashlib.sha256(raw).hexdigest()
+        with target.open("r", encoding="utf-8-sig", newline="") as stream:
+            rows = sum(1 for _ in csv.DictReader(stream))
+        if digest != item.get("sha256"):
+            issues.append({"code": "DIM-TO-005", "dimension": dimension,
+                           "message": "收据来源字节已变化",
+                           "evidence": {"relative_path": relative,
+                                        "expected": item.get("sha256"),
+                                        "actual": digest}})
+            continue
+        if rows != item.get("rows"):
+            issues.append({"code": "DIM-TO-005", "dimension": dimension,
+                           "message": "收据来源行数已变化",
+                           "evidence": {"relative_path": relative,
+                                        "expected": item.get("rows"),
+                                        "actual": rows}})
+            continue
+        verified.append({"dimension": dimension, "relative_path": relative,
+                         "path": str(target), "sha256": digest, "rows": rows})
+    return {"ok": not issues, "issues": issues, "files": verified}
+
+
 def register(manifest_path: str | Path, source_root: str | Path,
              ledger_path: str | Path) -> dict:
     """Freeze a verified local delivery as an immutable intake receipt."""

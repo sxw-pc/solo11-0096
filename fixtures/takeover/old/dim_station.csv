@@ -1,0 +1,7 @@
+station_key,station_code,station_name,line_key
+1,S-A01,示例甲一,1
+2,S-A02,示例甲二,1
+3,S-B01,示例乙一,2
+4,S-B02,示例乙二,2
+5,S-C01,示例丙一,3
+6,S-D01,示例丁一,4

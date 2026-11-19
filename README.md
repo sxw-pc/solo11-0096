@@ -72,7 +72,30 @@ python scripts/check_limits.py
 | `run.json` | 运行元数据；`started_at` 与 `duration_ms` 是唯一允许非确定性的字段 |
 | `ledger.sqlite3` | 追加式 SQLite 台账：运行、发现项、指标快照 |
 
+接管计划在 `--out` 另生成 `takeover.json`、`takeover.md`、`takeover.html` 与追加式的 `takeover.sqlite3`；复验输出 `takeover-verify.json`。
+
 报告文件在重复运行时更新；台账按自增主键追加，不删除历史。`run_id` 由数据集名和契约指纹派生。
+
+## 站线归属接管
+
+当两个维表生产方先后交付 `dim_line` / `dim_station` 时，`takeover` 决定哪一批交付可以成为 AFC 客流核验的起点，以及转线当天的客流归属哪条线路。它只接受**已登记且摘要仍有效**的交付收据，以及一份本地、不可变的转线事件清单；两者都不被改写。
+
+```bash
+python -m dimcheck takeover --ledger out/intake.sqlite3 \
+  --receipt batch-old --receipt-root fixtures/takeover \
+  --receipt batch-new --receipt-root fixtures/takeover \
+  --contract fixtures/takeover/model.yaml \
+  --events fixtures/takeover/transfers.json --policy partitioned_cutover --out out
+python -m dimcheck takeover-verify --ledger out/intake.sqlite3 \
+  --database out/takeover.sqlite3 --contract fixtures/takeover/model.yaml --out out
+```
+
+- 事件以 `station_code` 标识稳定车站身份，给出原线路、新线路与 UTC 生效时点；同一车站的有效区间必须半开且无冲突。事件指向未知线路、同一代理键被另一站码复用、站码重复或收据失效时，计划进入待核。
+- 每条 `fct_ridership` 先用 `service_date_key` 找服务日期，再用旧批次 `station_key` 找稳定站码，按转线区间确定当日线路，最后核对新批次站码与新线路归属同一身份。不得因新旧代理键相同就认定身份相同。无法唯一归属的行保留逐行证据。
+- `atomic_cutover`：所有受影响客流都能在新维表唯一归属后才整份切换。`partitioned_cutover`：已核实服务日分区接管新维表，冲突分区仍用旧维表；报告分别列出新旧起点的客流计数与收据。
+- 退出码：`0` 已确认；`2` 计划被阻断；`3` 逐行待核但未阻断的分区结论。
+
+产物为 `takeover.json`、`takeover.md`、`takeover.html`、`takeover.sqlite3`（追加式）与 `takeover-verify.json`。同一计划重放幂等；来源或事件字节变化必然生成新计划，已确认结论不会被改写。
 
 ## 检查能力
 
@@ -148,7 +171,7 @@ tests/                   单元、集成、确定性、离线与台账回归
 ## 开发约束
 
 - Python 3.10+；不使用 pandas、pyarrow、pydantic、jinja2、requests。
-- Python 代码总行数目标 `2500..4500`；任意单文件不超过 `300` 行。`scripts/check_limits.py` 自检，`pytest -q` 中有回归测试断言该自检通过。
+- Python 代码总行数目标 `2500..6200`（接管流程新增独立模块后上调）；任意单文件不超过 `300` 行。`scripts/check_limits.py` 自检，`pytest -q` 中有回归测试断言该自检通过。
 - 运行期依赖仅 `PyYAML`；其余使用标准库。
 - 所有测试离线运行，并带 socket DNS 守卫。
 

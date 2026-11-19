@@ -1,0 +1,11 @@
+{
+  "schema": "dimcheck.transfers/1",
+  "events": [
+    {
+      "station_code": "S-A01",
+      "from_line_code": "L-01",
+      "to_line_code": "L-09",
+      "effective_at": "2026-01-02T00:00:00Z"
+    }
+  ]
+}

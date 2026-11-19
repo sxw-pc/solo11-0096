@@ -226,24 +226,54 @@ def check_declared_schema(contract: Contract, dataset: Dataset) -> list:
     return findings
 
 
-def load_dataset(contract: Contract) -> Dataset:
+def read_table(name: str, path: str | Path, source: str, nulls: set[str],
+               max_rows: int, already: int = 0, fmt: str | None = None) -> Table:
+    """Parse one already-resolved local file into a table.
+
+    The caller is responsible for path containment; this helper only parses.
+    ``source`` is kept in the table for reporting and must not contain a secret
+    absolute path. ``max_rows`` is the cumulative budget shared by the caller.
+    """
+    file_path = Path(path)
+    resolved_format = fmt or ("jsonl" if file_path.suffix.lower() == ".jsonl" else "csv")
+    if resolved_format == "jsonl":
+        columns, rows = _read_jsonl(file_path, source, nulls, max_rows, already)
+    else:
+        columns, rows = _read_csv(file_path, source, nulls, max_rows, already)
+    return _build_table(name, source, columns, rows)
+
+
+def load_dataset(contract: Contract, overrides: dict[str, str | Path] | None = None) -> Dataset:
+    """Load the contract dataset, optionally replacing an entity's source file.
+
+    ``overrides`` maps an entity name (dimension or fact) to a concrete local
+    path. Overrides never relax containment: the path must still resolve inside
+    ``contract.root``. Intake receipt paths are already guarded by the caller,
+    so the check here is defense in depth rather than the primary gate.
+    """
     tables: dict[str, Table] = {}
     total = 0
     nulls = {token.strip().lower() for token in contract.null_tokens}
     nulls.add("")
+    replacements = overrides or {}
     entities = list(contract.dimensions) + list(contract.facts)
     for entity in entities:
+        replacement = replacements.get(entity.name)
         try:
-            path = resolve_under(contract.root, entity.source, label=f"{entity.name} 数据源")
+            if replacement is None:
+                path = resolve_under(contract.root, entity.source,
+                                     label=f"{entity.name} 数据源")
+            else:
+                path = resolve_under(contract.root, replacement,
+                                     label=f"{entity.name} 数据源")
         except PathError as exc:
-            raise SourceError(exc.code, entity.source, exc.message) from exc
-        if entity.format == "jsonl":
-            columns, rows = _read_jsonl(path, entity.source, nulls, contract.max_rows, total)
-        else:
-            columns, rows = _read_csv(path, entity.source, nulls, contract.max_rows, total)
-        total += len(rows)
+            raise SourceError(exc.code, str(replacement or entity.source),
+                              exc.message) from exc
+        table = read_table(entity.name, path, entity.source, nulls,
+                           contract.max_rows, total, entity.format)
+        total += len(table.rows)
         if total > contract.max_rows:
             raise SourceError("DIM-LIM-001", entity.source, "输入行数超过上限",
                               {"limit": contract.max_rows, "attempted": total})
-        tables[entity.name] = _build_table(entity.name, entity.source, columns, rows)
+        tables[entity.name] = table
     return Dataset(contract.name, tables, total, contract.max_rows)

@@ -32,6 +32,12 @@ CODES: dict[str, tuple[str, str, str]] = {
     "DIM-CON-009": ("info", "维度未被使用", "删除未使用维度或补充业务引用。"), "DIM-IO-001": ("error", "输出写入失败", "检查 --out 目录权限与磁盘空间。"),
     "DIM-CLI-001": ("error", "命令行参数非法", "运行 python -m dimcheck --help 查看参数。"), "DIM-EXPLAIN-001": ("error", "未知错误码", "先运行 explain 且不带参数列出全部错误码。"),
     "DIM-INTERNAL-001": ("error", "内部异常", "保留输入与堆栈反馈给维护者。"),
+    "DIM-TO-001": ("error", "转线事件结构非法", "修正事件对象字段与非空字符串。"), "DIM-TO-002": ("error", "转线事件没有实际转线", "原线路与新线路必须不同。"),
+    "DIM-TO-003": ("error", "转线区间冲突", "同一车站的生效区间必须半开、有序且无冲突。"), "DIM-TO-004": ("error", "接管策略非法", "只使用 atomic_cutover 或 partitioned_cutover。"),
+    "DIM-TO-005": ("error", "交付收据失效", "重新登记交付；来源字节或行数变化后不能沿用旧计划。"), "DIM-TO-006": ("error", "车站身份不唯一", "在批次内保证站码与代理键唯一。"),
+    "DIM-TO-007": ("error", "代理键跨批次复用", "同一代理键在新批次指向了另一站码。"), "DIM-TO-008": ("error", "转线指向未知线路", "在 dim_line 中补齐线路或修正事件。"),
+    "DIM-TO-009": ("error", "接管所需对象或列缺失", "补齐契约中的 dim_line/dim_station/dim_date/fct_ridership。"), "DIM-TO-010": ("error", "接管计划被拒绝", "修正输入后重新生成计划；不得改写已确认结论。"),
+    "DIM-TO-011": ("warning", "接管计划待核", "逐行复核 pending 证据后再确认。"),
 }
 @dataclass(frozen=True)
 class Finding:

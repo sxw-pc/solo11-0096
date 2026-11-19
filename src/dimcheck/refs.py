@@ -4,9 +4,103 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
-from .contract import Contract
-from .sources import Dataset
+from .contract import Contract, Dimension, Snowflake
+from .sources import Dataset, Table
 from .util import finding, value_token
+
+
+def unique_index(table: Table, column: str) -> dict[str, list[Any]]:
+    """Group non-null values of ``column`` by canonical token.
+
+    Returns every group, including duplicates, so callers can distinguish a
+    unique identity from a duplicated one instead of silently taking the first
+    row. Null keys are excluded and must be handled explicitly by the caller.
+    """
+    groups: dict[str, list[Any]] = {}
+    for row in table.rows:
+        value = row.get(column)
+        if value is None:
+            continue
+        groups.setdefault(value_token(value), []).append(value)
+    return groups
+
+
+def snowflake_line_code(stations: Table | None, lines: Table | None,
+                        station_key: Any) -> str | None:
+    """Resolve a ridership station key to a line code through the snowflake.
+
+    This is the read-only identity path used by takeover verification:
+    ``fct_ridership.station_key`` -> ``dim_station.station_key`` ->
+    ``dim_station.line_key`` -> ``dim_line.line_code``. Any missing or
+    duplicated hop returns ``None`` so the caller keeps the row pending.
+    """
+    station = unique_row(row_index(stations, "station_key"), station_key)
+    if station is None:
+        return None
+    return lookup_line_code(lines, row_index(lines, "line_key"),
+                            station.get("line_key"))
+
+
+def station_code_for_key(stations: Table | None, station_key: Any) -> str | None:
+    """Return the unique ``station_code`` for one surrogate key, else ``None``."""
+    station = unique_row(row_index(stations, "station_key"), station_key)
+    return station.get("station_code") if station else None
+
+
+def row_index(table: Table | None, column: str) -> dict[str, list[dict[str, Any]]]:
+    """Group whole rows by the canonical token of one non-null column.
+
+    Returning rows (not bare values) lets takeover planning read several
+    columns of the uniquely matched record and detect duplicates without ever
+    falling back to the first match.
+    """
+    if table is None or column not in table.columns:
+        return {}
+    result: dict[str, list[dict[str, Any]]] = {}
+    for row in table.rows:
+        value = row.get(column)
+        if value is None:
+            continue
+        result.setdefault(value_token(value), []).append(row)
+    return result
+
+
+def unique_row(index: dict[str, list[dict[str, Any]]], value: Any) -> dict | None:
+    """Return the only row for ``value``, or ``None`` when absent/duplicated."""
+    if value is None:
+        return None
+    values = index.get(value_token(value), [])
+    return values[0] if len(values) == 1 else None
+
+
+def lookup_line_code(line_table: Table | None, index: dict[str, list[dict[str, Any]]],
+                     line_key: Any) -> str | None:
+    """Resolve ``dim_station.line_key`` to its ``dim_line.line_code``.
+
+    ``None`` means the snowflake key is missing or ambiguous; callers must keep
+    the record pending instead of guessing a line.
+    """
+    row = unique_row(index, line_key)
+    return row.get("line_code") if row else None
+
+
+def single_lookup(table: Table, column: str) -> dict[str, Any]:
+    """Map tokens to values only when the column is unique and non-null.
+
+    A token whose value occurs more than once is intentionally absent, so a
+    caller cannot accidentally attribute an ambiguous natural key.
+    """
+    groups = unique_index(table, column)
+    return {token: values[0] for token, values in groups.items() if len(values) == 1}
+
+
+def snowflake_relation(contract: Contract, dimension_name: str) -> Snowflake | None:
+    dimension = contract.dimensions_by_name().get(dimension_name)
+    return dimension.snowflake if dimension else None
+
+
+def dimension_by_name(contract: Contract, name: str) -> Dimension | None:
+    return contract.dimensions_by_name().get(name)
 
 
 def _sample(values: list[Any], limit: int = 5) -> list[Any]:

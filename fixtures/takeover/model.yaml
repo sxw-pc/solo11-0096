@@ -1,0 +1,62 @@
+schema_version: 1
+run_epoch: 1767225600
+dataset:
+  name: afc_takeover_demo
+  root: .
+  max_rows: 1000
+  null_tokens: ["NULL", "null"]
+dimensions:
+  - name: dim_date
+    source: dim_date.csv
+    format: csv
+    conformed_group: calendar
+    surrogate_key: date_key
+    natural_keys: [date_id]
+    attributes:
+      - {name: date_key, type: integer}
+      - {name: date_id, type: string}
+      - {name: calendar_date, type: date}
+      - {name: is_weekend, type: boolean}
+      - {name: fiscal_year, type: integer}
+  - name: dim_line
+    source: old/dim_line.csv
+    format: csv
+    surrogate_key: line_key
+    natural_keys: [line_code]
+    attributes:
+      - {name: line_key, type: integer}
+      - {name: line_code, type: string}
+      - {name: line_name, type: string}
+  - name: dim_station
+    source: old/dim_station.csv
+    format: csv
+    surrogate_key: station_key
+    natural_keys: [station_code]
+    attributes:
+      - {name: station_key, type: integer}
+      - {name: station_code, type: string}
+      - {name: station_name, type: string}
+      - {name: line_key, type: integer}
+    snowflake:
+      parent: dim_line
+      child_key: line_key
+      parent_key: line_key
+facts:
+  - name: fct_ridership
+    source: fct_ridership.csv
+    format: csv
+    grain: [event_id]
+    refs:
+      - dimension: dim_date
+        fact_key: service_date_key
+        dimension_key: date_key
+        role: service_date
+      - dimension: dim_station
+        fact_key: station_key
+        dimension_key: station_key
+        role: station
+    measures:
+      - {name: ride_count, column: ride_count, agg: sum, additivity: additive, unit: rides}
+      - {name: fare_amount, column: fare_amount, agg: sum, additivity: additive, unit: currency}
+      - {name: avg_wait_seconds, column: avg_wait_seconds, agg: avg, additivity: non_additive, unit: seconds}
+      - {name: card_balance, column: card_balance, agg: sum, additivity: semi_additive, semi_additive_axis: dim_date, unit: balance}

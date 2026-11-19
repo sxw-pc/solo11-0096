@@ -38,6 +38,11 @@ CLI 参数
 | `report.py` | 报告对象、Markdown/HTML 渲染、四个文件写出 | HTML 内联 CSS，无脚本与外部资源 |
 | `ledger.py` | 建表、追加运行、读取运行/发现项/指标快照 | 只有 INSERT；不 UPDATE、不 DELETE 历史 |
 | `server.py` | 只读 `http.server` 页面与静态报告 | 仅绑定 `127.0.0.1`，写方法返回 405 |
+| `takeover.py` | 接管计划编排：两收据、事件、自适应策略、分区结论 | 只读原始维表与收据；不写源文件 |
+| `takeover_events.py` | 转线事件解析、UTC 半开区间、冲突判定 | 同一车站区间必须有序、半开、无冲突 |
+| `takeover_resolve.py` | 逐行身份与线路解析、收据复读与复验 | 歧义一律保留逐行证据，不取首条匹配 |
+| `takeover_store.py` | 接管台账追加、幂等重放、独立复验 | 无 UPDATE/DELETE；同 plan_id 内容冲突拒绝覆盖 |
+| `takeover_report.py` | 接管 JSON/Markdown/HTML 报告 | 报告不写绝对路径；HTML 无脚本与外部资源 |
 | `util.py` | 错误码表、发现项、规范 JSON、指纹、时间、路径守卫 | 确定性与安全策略的单一来源 |
 
 ## 数据模型
@@ -104,6 +109,26 @@ CLI 参数
 
 只绑定 `127.0.0.1`。只实现 GET/HEAD；POST/PUT/PATCH/DELETE 一律 405。响应带严格 CSP、`nosniff`、`no-referrer` 与 `no-store`。这不是多用户应用，没有认证、上传或写接口。
 
+## 站线归属接管
+
+`takeover` 是独立于 `run` 的第二步。输入只有两类：已登记且摘要仍有效的 `dim_line`/`dim_station` 交付收据，以及一份本地不可变转线事件清单。
+
+```text
+旧收据 ─┬─ 重新读取收据 → 重算 CSV 字节/行数 → 不匹配则整份计划 pending
+新收据 ─┘
+事件文件 → UTC 时点 → 半开区间链检查 → 冲突车站标记
+             └─ 对每行 fct_ridership：
+                  service_date_key → dim_date.calendar_date（UTC 零时业务日）
+                  station_key → 旧批次站码（稳定身份）
+                  事件区间 → 当日线路
+                  新批次站码 → 新线路，必须同一身份且线路一致
+                  无法唯一归属 → pending 证据，不归首条匹配
+策略    atomic_cutover     全部行核实才整份切换
+        partitioned_cutover 按服务日期分区切换，冲突分区留旧起点
+```
+
+`plan_id` 由契约指纹、策略、收据摘要、事件摘要、阻断项与分区结论共同派生；同一计划重放不新增行，来源或事件字节变化必然生成新 `plan_id`。`takeover-verify` 只读取台账中的批次引用与事件路径，重新执行同一计算并比对结论与摘要，因此只改报告或台账摘要不能让错误接管通过。
+
 ## 测试结构
 
 - `conftest.py` 构造最小项目，并提供 socket DNS 守卫；
@@ -112,6 +137,7 @@ CLI 参数
 - `test_ledger` 覆盖追加与读取；
 - `test_cli` 覆盖退出码、致命错误与 demo；
 - `test_server` 覆盖只读路由与安全头；
+- `test_takeover` 覆盖两策略反例、代理键复用、重叠事件、半开边界、来源变化与旧计划保留；
 - `test_limits` 调用行数自检脚本。
 
 ## 扩展点

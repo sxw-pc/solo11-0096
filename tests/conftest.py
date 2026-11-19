@@ -120,3 +120,9 @@ def offline_guard(monkeypatch):
         return real(host, *args, **kwargs)
 
     monkeypatch.setattr(socket, "getaddrinfo", guarded)
+
+
+@pytest.fixture
+def ledger(tmp_path: Path) -> Path:
+    """Empty intake ledger shared by takeover tests."""
+    return tmp_path / "intake.sqlite3"

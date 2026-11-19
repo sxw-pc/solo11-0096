@@ -1,6 +1,6 @@
 # 错误码目录
 
-共 43 个稳定错误码。`python -m dimcheck explain` 列出全部；`python -m dimcheck explain DIM-FAN-001` 查看单条。错误码是稳定接口，新增码不得改变既有码的含义。
+共 54 个稳定错误码。`python -m dimcheck explain` 列出全部；`python -m dimcheck explain DIM-FAN-001` 查看单条。错误码是稳定接口，新增码不得改变既有码的含义。
 
 ## 严重级与退出码
 
@@ -107,8 +107,25 @@
 
 角色规则由事实内和跨事实两部分组成。`conformed_group` 取字典序最小的成员作为比较基线；成对比较属性集、类型与样例取值域。
 
-## 运行边界
+## 站线归属接管
 
+接管计划（`dimcheck takeover`）使用下列错误码。`DIM-TO-005`、`DIM-TO-008`、`DIM-TO-009` 以及旧批次身份歧义、代理键复用属于计划级阻断；其余可落在单个分区或单行证据上。
+
+| 代码 | 级别 | 触发条件 | 修复建议 | 示例 |
+| --- | --- | --- | --- | --- |
+| `DIM-TO-001` | error | 事件文件不是合法 UTF-8 JSON、不是 `events` 列表、事件字段缺失或生效时点不是带时区的 UTC 时间戳 | 按 `fixtures/takeover/transfers.json` 修正结构与时间格式 | `effective_at: "2026-01-02"`（无时区） |
+| `DIM-TO-002` | error | 事件的原线路与新线路相同 | 删除无效事件或修正线路 | `from_line_code == to_line_code` |
+| `DIM-TO-003` | error | 同一车站存在相同生效时点、线路链断裂，或有客流无法按半开区间唯一归属 | 保证同一车站有效区间有序、半开且无重叠 | 两条 `S-A01` 事件都在 `2026-01-02T00:00:00Z` |
+| `DIM-TO-004` | error | 命令行未给出两个收据，或策略不是 `atomic_cutover` / `partitioned_cutover` | 按旧→新顺序各给一次 `--receipt` 与 `--receipt-root` | `--policy best_effort` |
+| `DIM-TO-005` | error | 收据不存在、路径越界、来源字节或行数变化、收据缺 `dim_line`/`dim_station` | 重新登记交付；字节变化后必须新建计划 | 登记后又改写 CSV |
+| `DIM-TO-006` | error | 批次内 `station_key` 或 `station_code` 不唯一 | 在批次内保证站码与代理键唯一 | 新批次两条 `S-C01` |
+| `DIM-TO-007` | error | 同一代理键在新批次指向另一站码 | 禁止跨批次复用代理键表示不同身份 | 旧 `station_key=4` 是 `S-B02`，新批次是 `S-E01` |
+| `DIM-TO-008` | error | 事件的原/新线路不在任一批次的 `dim_line` 中 | 补齐线路维或修正事件 | 事件指向 `L-09` |
+| `DIM-TO-009` | error | 契约缺少 `dim_line`/`dim_station`/`dim_date`/`fct_ridership` 或所需列 | 在契约与源中补齐对象和列 | 事实缺 `service_date_key` |
+| `DIM-TO-010` | error | 复验发现台账结论或摘要与重算不一致 | 以重算结果为准，重新生成计划；不得改写已确认结论 | 手工修改 `takeover.sqlite3` 的 conclusion |
+| `DIM-TO-011` | warning | 计划或复验仍处于待核状态 | 逐行复核 `pending_evidence` 后再确认 | 冲突分区保留旧起点 |
+
+## 运行边界
 | 代码 | 级别 | 触发条件 | 修复建议 | 示例 |
 | --- | --- | --- | --- | --- |
 | `DIM-IO-001` | error | 输出目录无法创建/写入，或复核台无法绑定端口 | 检查 `--out` 权限、磁盘空间与端口占用 | 报告写到只读目录 |

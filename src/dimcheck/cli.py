@@ -149,6 +149,58 @@ def _command_serve(args) -> int:
     return 0
 
 
+def _receipt_arguments(args) -> list[dict]:
+    return [{"batch_id": batch, "source_root": root}
+            for batch, root in zip(args.receipt, args.receipt_root)]
+
+
+def _command_takeover(args) -> int:
+    from .takeover import build_plan
+    from .takeover_report import write_plan_reports
+    from .takeover_store import save_plan
+    try:
+        receipts = _receipt_arguments(args)
+        if len(receipts) != 2 or len(args.receipt_root) != 2:
+            print("DIM-TO-004 需要且仅需要两个收据及其 --receipt-root", file=sys.stderr)
+            return 1
+        contract = load_contract(guard_contract_path(args.contract))
+        epoch = report_epoch(contract.run_epoch)
+        plan = build_plan(contract, args.ledger, receipts, args.events,
+                          args.policy, epoch)
+        output = ensure_out_dir(args.out)
+        created = save_plan(output / "takeover.sqlite3", plan)
+        paths = write_plan_reports(output, plan)
+        print(f"takeover {plan['plan_id']} state={plan['state']} "
+              f"policy={plan['policy']} created={str(created).lower()}")
+        print(f"plan: {paths['json']}")
+        if plan["state"] == "confirmed":
+            return 0
+        return 2 if plan.get("blocked") else 3
+    except ValueError as exc:
+        print(f"DIM-TO-010 {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001 - graded CLI boundary
+        return _handle_fatal(exc)
+
+
+def _command_takeover_verify(args) -> int:
+    from .takeover_report import write_verification
+    from .takeover_store import verify_plan
+    try:
+        contract = load_contract(guard_contract_path(args.contract))
+        result = verify_plan(contract, args.ledger, args.database, args.plan_id)
+        output = ensure_out_dir(args.out)
+        path = write_verification(output, result)
+        for item in result["findings"]:
+            print(f"{item['code']} {item['object_name']}: {item['message']}",
+                  file=sys.stderr)
+        print(f"verify {'ok' if result['ok'] else 'failed'} plan={result['plan_id']} "
+              f"report: {path}")
+        return 0 if result["ok"] else 1
+    except Exception as exc:  # noqa: BLE001 - graded CLI boundary
+        return _handle_fatal(exc)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="dimcheck", description="离线数仓维度模型聚合安全体检工具",
                      allow_abbrev=False)
@@ -170,6 +222,27 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--out", default="out")
     serve.add_argument("--port", type=int, default=8765)
     serve.set_defaults(func=_command_serve)
+    takeover = sub.add_parser(
+        "takeover", help="生成站线归属接管计划（需两个已登记收据）", allow_abbrev=False)
+    takeover.add_argument("--contract", default=str(repo_root() / "contracts" / "model.yaml"))
+    takeover.add_argument("--ledger", required=True, help="已登记收据的 SQLite 路径")
+    takeover.add_argument("--receipt", action="append", default=[],
+                          help="按旧→新顺序重复给出 batch_id")
+    takeover.add_argument("--receipt-root", action="append", default=[],
+                          help="与 --receipt 一一对应的来源根目录")
+    takeover.add_argument("--events", required=True, help="本地不可变转线事件清单")
+    takeover.add_argument("--policy", default="atomic_cutover",
+                          choices=["atomic_cutover", "partitioned_cutover"])
+    takeover.add_argument("--out", default="out")
+    takeover.set_defaults(func=_command_takeover)
+    verify = sub.add_parser(
+        "takeover-verify", help="独立重读收据与原始 CSV 复验计划", allow_abbrev=False)
+    verify.add_argument("--contract", default=str(repo_root() / "contracts" / "model.yaml"))
+    verify.add_argument("--ledger", required=True, help="收据台账 SQLite 路径")
+    verify.add_argument("--database", required=True, help="接管计划 SQLite 路径")
+    verify.add_argument("--plan-id", default=None)
+    verify.add_argument("--out", default="out")
+    verify.set_defaults(func=_command_takeover_verify)
     return parser
 
 
