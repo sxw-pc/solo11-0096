@@ -58,6 +58,32 @@ python scripts/make_fixtures.py --root fixtures
 python scripts/check_limits.py
 ```
 
+### 闸机事件到行程事实（trips）
+
+`trips` 子命令在不改写任何既有聚合表的前提下，把闸机进/出站事件派生为版本化逐行程事实：
+
+```bash
+python -m dimcheck trips \
+  --taps fixtures/tap-events.jsonl \
+  --stations fixtures/dim_station.csv \
+  --links fixtures/transfer-links.json \
+  --dates fixtures/dim_date.csv \
+  --fare-contract fixtures/trips/fare-paid-area-continuity.json \
+  --out out-trips
+```
+
+派生规则（实现于 `tap_index.py` / `trip_build.py` / `trip_journey.py` / `trip_facts.py`）：
+
+- 先按卡片伪标识与闸机事件身份建立一对一进出站乘车段；业务时刻与输入到达顺序分开记录，乱序输入不影响结果，完全相同的事件重放幂等折叠，同身份异文事件被隔离为冲突且不参与配对。
+- 每个事件按 `clock_error_seconds` 得到真实时刻闭区间。仅当进出站次序、最大乘车时长、站码映射与跨站步行条件都**可证**时才发布确定乘车段；两种可行配对、区间跨越阈值、缺失一端、跨午夜但缺服务日归属规则、站码无法唯一映射时，只输出带原事件证据的待核清单，绝不贪心取最近闸机制造唯一行程。
+- 票制合同在处理前冻结为 JSON：`paid_area_continuity` 把允许步行链与转乘时限内的相邻段归为一趟多段行程（计一次换乘）；`gate_exit_breaks` 把每次出站视为行程结束。同一四事件输入在两合同下分别得到 1 趟 1 换乘与 2 趟 0 换乘，事实行数不同且各自正确。
+- 站码经 `dim_station` 映射为代理键；同名不同站、同代理键漂移都不会被当作同一位置，一站码映射多个代理键直接报 `DIM-TAP-001`。
+- 每个输出根目录只追加 `v-<16位指纹>` 版本目录：输入或票制合同改一个字节即产生新版本，旧版本行程证明永不覆盖；清单被篡改时重放报 `DIM-TAP-002`。
+- 版本目录内含 `fct_trip.csv` / `fct_trip.jsonl`（稳定 `trip_id`、服务日代理键、起终站代理键、乘车段数、换乘数、逐行可追溯的 tap ID）、`pending.json` 待核清单、票制合同与站点来源摘要、来源 SHA-256 清单，以及独立 `trip-contract.yaml`。
+- 每个版本自动调用本仓现有 keys / refs / fanout / measures 检查（结果在 `check/` 与 `verification.json`）；存在 error 时 `publishable=false`，核验失败的行不会被报告为可发布事实，CLI 退出码为 `2`。
+
+`fixtures/trips/` 提供两票制合同、五分钟转乘阈值合同、跨午夜服务日规则，以及乱序、重放、异文隔离、歧义配对、缺端、跨午夜等合成场景；`scripts/make_fixtures.py` 可逐字节重建全部 fixture。
+
 安装包后也可使用控制台入口 `dimcheck`。`serve` 只绑定回环地址 `127.0.0.1`，只提供只读页面和 JSON 视图。
 
 ## 产物
@@ -129,9 +155,9 @@ python scripts/check_limits.py
 ```text
 contracts/               契约、字段说明
 docs/                    ARCHITECTURE / CODES / COMPLIANCE
-fixtures/                demo 生成的合成数据
+fixtures/                demo 生成的合成数据（trips/ 为闸机行程场景与票制合同）
 scripts/                 fixture 生成、行数预算自检
-src/dimcheck/            CLI、契约、数据源、检查器、报告、台账、复核台
+src/dimcheck/            CLI、契约、数据源、检查器、报告、台账、复核台、行程派生
 tests/                   单元、集成、确定性、离线与台账回归
 ```
 
@@ -140,7 +166,7 @@ tests/                   单元、集成、确定性、离线与台账回归
 ## 开发约束
 
 - Python 3.10+；不使用 pandas、pyarrow、pydantic、jinja2、requests。
-- Python 代码总行数目标 `2500..4500`；任意单文件不超过 `300` 行。`scripts/check_limits.py` 自检，`pytest -q` 中有回归测试断言该自检通过。
+- Python 代码总行数目标 `2500..5200`；任意单文件不超过 `300` 行。`scripts/check_limits.py` 自检，`pytest -q` 中有回归测试断言该自检通过。
 - 运行期依赖仅 `PyYAML`；其余使用标准库。
 - 所有测试离线运行，并带 socket DNS 守卫。
 

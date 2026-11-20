@@ -89,15 +89,91 @@ def generate(root: str | Path, quiet: bool = False) -> dict[str, int]:
     _csv(target / "fct_fare_revenue.csv",
          ["revenue_id", "accounting_date_key", "station_key", "fare_band_key",
           "payment_key", "revenue_amount", "transaction_count", "refund_amount"], revenue)
-    counts = {
+    counts = _write_trip_fixtures(target)
+    counts.update({
         "dim_line": len(lines), "dim_station": len(stations), "dim_date": len(calendar),
         "dim_accounting_date": len(calendar), "dim_fare_band": len(fares),
         "dim_payment": len(payments), "fct_ridership": len(ridership),
         "fct_fare_revenue": len(revenue),
-    }
+    })
     if not quiet:
         print(f"fixtures: {sum(counts.values())} rows in {len(counts)} files -> {target}")
     return counts
+
+
+def _json(path: Path, value) -> None:
+    path.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                    encoding="utf-8")
+
+
+def _jsonl_compact(path: Path, rows: list[dict]) -> None:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True,
+                                    separators=(",", ":")) + "\n")
+
+
+def _tap(event_id, card, kind, code, at, error=0, day="2026-01-01") -> dict:
+    return {"event_id": event_id, "card_token": card, "kind": kind,
+            "station_code": code, "at": f"{day}T{at}Z",
+            "clock_error_seconds": error}
+
+
+def _write_trip_fixtures(target: Path) -> dict:
+    """Frozen synthetic gate-event scenarios and fare contracts for trip building."""
+    trip_dir = target / "trips"
+    trip_dir.mkdir(parents=True, exist_ok=True)
+    card = "synthetic-H"
+    base = [
+        _tap("tap-1", card, "entry", "S-A01", "08:00:00"),
+        _tap("tap-2", card, "exit", "S-A02", "08:20:00"),
+        _tap("tap-3", card, "entry", "S-B01", "08:25:00"),
+        _tap("tap-4", card, "exit", "S-B02", "08:40:00"),
+    ]
+    scenarios = {
+        "uncertain-transfer.jsonl": [
+            base[0], _tap("tap-2", card, "exit", "S-A02", "08:20:00", 60),
+            _tap("tap-3", card, "entry", "S-B01", "08:25:00", 60), base[3]],
+        "shuffled.jsonl": [base[3], base[1], base[2], base[0]],
+        "replayed.jsonl": [base[0], base[0], base[1], base[2], base[2], base[3]],
+        "divergent-identity.jsonl": [
+            base[0], _tap("tap-1", card, "entry", "S-A01", "08:01:00"),
+            base[1], base[2], base[3]],
+        "ambiguous-pairing.jsonl": [
+            _tap("e1", "synthetic-K", "entry", "S-A01", "08:00:00"),
+            _tap("e2", "synthetic-K", "entry", "S-A01", "08:10:00"),
+            _tap("x1", "synthetic-K", "exit", "S-A02", "08:20:00")],
+        "midnight.jsonl": [
+            _tap("n1", "synthetic-N", "entry", "S-A01", "23:55:00"),
+            _tap("n2", "synthetic-N", "exit", "S-A02", "00:10:00", day="2026-01-02")],
+        "missing-end.jsonl": [_tap("m1", "synthetic-M", "entry", "S-A01", "08:00:00")],
+    }
+    for name, rows in scenarios.items():
+        _jsonl_compact(trip_dir / name, rows)
+    contracts = {
+        "fare-paid-area-continuity.json": {
+            "contract_id": "fc-paid-area-continuity-v1",
+            "kind": "paid_area_continuity", "max_ride_seconds": 1800,
+            "transfer_limit_seconds": 600,
+            "service_day_policy": "entry_business_date"},
+        "fare-gate-exit-breaks.json": {
+            "contract_id": "fc-gate-exit-breaks-v1",
+            "kind": "gate_exit_breaks", "max_ride_seconds": 1800,
+            "transfer_limit_seconds": 600,
+            "service_day_policy": "entry_business_date"},
+        "fare-transfer-300.json": {
+            "contract_id": "fc-transfer-threshold-five-min-v1",
+            "kind": "paid_area_continuity", "max_ride_seconds": 1800,
+            "transfer_limit_seconds": 300,
+            "service_day_policy": "entry_business_date"},
+        "fare-service-day-unspecified.json": {
+            "contract_id": "fc-service-day-unspecified-v1",
+            "kind": "gate_exit_breaks", "max_ride_seconds": 1800,
+            "transfer_limit_seconds": 600, "service_day_policy": "unspecified"},
+    }
+    for name, value in contracts.items():
+        _json(trip_dir / name, value)
+    return {f"trips/{name}": len(rows) for name, rows in scenarios.items()}
 
 
 def main() -> int:

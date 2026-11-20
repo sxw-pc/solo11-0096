@@ -1,0 +1,4 @@
+{"at":"2026-01-01T08:00:00Z","card_token":"synthetic-H","clock_error_seconds":0,"event_id":"tap-1","kind":"entry","station_code":"S-A01"}
+{"at":"2026-01-01T08:20:00Z","card_token":"synthetic-H","clock_error_seconds":60,"event_id":"tap-2","kind":"exit","station_code":"S-A02"}
+{"at":"2026-01-01T08:25:00Z","card_token":"synthetic-H","clock_error_seconds":60,"event_id":"tap-3","kind":"entry","station_code":"S-B01"}
+{"at":"2026-01-01T08:40:00Z","card_token":"synthetic-H","clock_error_seconds":0,"event_id":"tap-4","kind":"exit","station_code":"S-B02"}

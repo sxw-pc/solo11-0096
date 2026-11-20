@@ -1,6 +1,6 @@
 # 错误码目录
 
-共 43 个稳定错误码。`python -m dimcheck explain` 列出全部；`python -m dimcheck explain DIM-FAN-001` 查看单条。错误码是稳定接口，新增码不得改变既有码的含义。
+共 45 个稳定错误码。`python -m dimcheck explain` 列出全部；`python -m dimcheck explain DIM-FAN-001` 查看单条。错误码是稳定接口，新增码不得改变既有码的含义。
 
 ## 严重级与退出码
 
@@ -106,6 +106,15 @@
 | `DIM-CON-009` | info | 维度未被任何事实直接引用，也不在任何雪花父链上 | 删除未用维度或补充引用 | 声明了 `dim_channel`，无事实使用 |
 
 角色规则由事实内和跨事实两部分组成。`conformed_group` 取字典序最小的成员作为比较基线；成对比较属性集、类型与样例取值域。
+
+## 闸机行程派生
+
+| 代码 | 级别 | 触发条件 | 修复建议 | 示例 |
+| --- | --- | --- | --- | --- |
+| `DIM-TAP-001` | error | 闸机事件缺身份/非法进出站类型/负钟误差/缺时区、站码不在维表、步行链非法、票制合同字段非法或一站码映射多个代理键 | 核对事件、站点维表、步行链与票制合同后重跑 | 同一 `station_code` 出现两个不同 `station_key` |
+| `DIM-TAP-002` | error | 版本目录中已冻结的来源指纹与当前输入不一致，或清单被篡改；禁止覆盖既有行程证明 | 使用新的输出根目录发布新版本，不要改写历史版本 | 修改输入后重放同一版本目录 |
+
+配对与换乘的不确定性不使用 `DIM-*` 错误码，而是写入版本目录的 `pending.json` 与清单，原因码包括 `ambiguous_pairing`、`order_unprovable`、`ride_threshold_crossed`、`missing_partner`、`transfer_uncertain`、`service_day_unresolved`、`station_code_unmapped` 等，并附原事件证据与真实时刻区间。待核数据不会出现在 `fct_trip` 事实中；空事实表在独立契约检查下产生 error，核验失败的版本 `publishable=false`。
 
 ## 运行边界
 

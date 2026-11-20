@@ -20,6 +20,8 @@ from .refs import check_refs
 from .report import build_report, write_reports
 from .server import make_server
 from .sources import SourceError, check_declared_schema, load_dataset
+from .tap_index import FareContract, TripError
+from .trip_facts import publish_version, verify_version
 from .util import (CODES, PathError, ensure_out_dir, guard_contract_path, repo_root,
                    report_epoch)
 
@@ -83,6 +85,9 @@ def _handle_fatal(exc: Exception) -> int:
         else:
             print(f"{exc.code} {exc.message}", file=sys.stderr)
         return 1
+    if isinstance(exc, TripError):
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        return 1
     if isinstance(exc, OSError):
         print(f"DIM-IO-001 {exc}", file=sys.stderr)
         return 1
@@ -106,6 +111,25 @@ def _command_demo(args) -> int:
         report, _ = run_once(repo_root() / "contracts" / "model.yaml", args.out,
                              quiet=args.quiet)
         return report["exit_code"]
+    except Exception as exc:  # noqa: BLE001 - graded CLI boundary
+        return _handle_fatal(exc)
+
+
+def _command_trips(args) -> int:
+    try:
+        contract = FareContract.load(args.fare_contract)
+        published = publish_version(
+            args.taps, args.stations, args.links, args.dates, contract, args.out,
+            contract_file=args.fare_contract)
+        verdict = verify_version(published["dir"])
+        manifest = published["manifest"]
+        print(
+            f"dimcheck trips version={published['version']} kind={contract.kind} "
+            f"legs={manifest['counts']['legs']} facts={manifest['counts']['trip_facts']} "
+            f"pending={manifest['counts']['journeys_pending']} "
+            f"verdict={verdict['verdict']} publishable={verdict['publishable']}")
+        print(f"trip facts: {published['dir'] / 'fct_trip.csv'}")
+        return 0 if verdict["publishable"] else 2
     except Exception as exc:  # noqa: BLE001 - graded CLI boundary
         return _handle_fatal(exc)
 
@@ -170,6 +194,16 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--out", default="out")
     serve.add_argument("--port", type=int, default=8765)
     serve.set_defaults(func=_command_serve)
+    trips = sub.add_parser("trips", help="从闸机事件构建版本化行程事实并跑契约检查",
+                           allow_abbrev=False)
+    trips.add_argument("--taps", required=True)
+    trips.add_argument("--stations", required=True)
+    trips.add_argument("--links", required=True)
+    trips.add_argument("--dates", required=True)
+    trips.add_argument("--out", required=True)
+    trips.add_argument("--fare-contract", required=True,
+                       help="处理前冻结的票制合同 JSON（含合同 ID、票制、时限、服务日规则）")
+    trips.set_defaults(func=_command_trips)
     return parser
 
 

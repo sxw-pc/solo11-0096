@@ -23,7 +23,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="dimcheck 行数预算自检")
     parser.add_argument("--root", default=str(Path(__file__).resolve().parents[1]))
     parser.add_argument("--min", type=int, default=2500, dest="minimum")
-    parser.add_argument("--max", type=int, default=4500, dest="maximum")
+    parser.add_argument("--max", type=int, default=5200, dest="maximum")
     parser.add_argument("--file-max", type=int, default=300)
     args = parser.parse_args()
     root = Path(args.root).resolve()

@@ -1,0 +1,7 @@
+{
+  "contract_id": "fc-gate-exit-breaks-v1",
+  "kind": "gate_exit_breaks",
+  "max_ride_seconds": 1800,
+  "service_day_policy": "entry_business_date",
+  "transfer_limit_seconds": 600
+}

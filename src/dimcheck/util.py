@@ -31,6 +31,8 @@ CODES: dict[str, tuple[str, str, str]] = {
     "DIM-CON-007": ("error", "事实内角色冲突", "不同维度不要共享同一角色名。"), "DIM-CON-008": ("warning", "事实表未引用维度", "为事实表声明至少一个维度引用。"),
     "DIM-CON-009": ("info", "维度未被使用", "删除未使用维度或补充业务引用。"), "DIM-IO-001": ("error", "输出写入失败", "检查 --out 目录权限与磁盘空间。"),
     "DIM-CLI-001": ("error", "命令行参数非法", "运行 python -m dimcheck --help 查看参数。"), "DIM-EXPLAIN-001": ("error", "未知错误码", "先运行 explain 且不带参数列出全部错误码。"),
+    "DIM-TAP-001": ("error", "闸机事件或票制合同输入不合法", "核对 tap/站点/步行链/票制合同字段与取值域后重跑。"),
+    "DIM-TAP-002": ("error", "行程版本目录内容与来源指纹冲突", "更换输出目录；不得覆盖既有行程证明。"),
     "DIM-INTERNAL-001": ("error", "内部异常", "保留输入与堆栈反馈给维护者。"),
 }
 @dataclass(frozen=True)

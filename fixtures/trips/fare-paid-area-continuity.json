@@ -1,0 +1,7 @@
+{
+  "contract_id": "fc-paid-area-continuity-v1",
+  "kind": "paid_area_continuity",
+  "max_ride_seconds": 1800,
+  "service_day_policy": "entry_business_date",
+  "transfer_limit_seconds": 600
+}
